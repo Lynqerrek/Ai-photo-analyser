@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lens — AI Photo Analyser</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #05050a;
+  --surface: #0c0c14;
+  --surface2: #10101a;
+  --surface3: #161620;
+  --border: #1c1c2e;
+  --border2: #252538;
+  --accent: #c8ff00;
+  --accent-dim: rgba(200,255,0,0.07);
+  --accent-glow: rgba(200,255,0,0.15);
+  --accent2: #00ffc8;
+  --accent2-dim: rgba(0,255,200,0.07);
+  --text: #f0f0f5;
+  --muted: #42425a;
+  --muted2: #7070a0;
+  --error: #ff4d6a;
+  --r: 12px;
+  --r-sm: 8px;
+}
+
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+html { -webkit-font-smoothing:antialiased; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', 'JetBrains Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2.5rem 1.25rem 6rem;
+  font-size: 13.5px;
+  line-height: 1.6;
+  /* Subtle background grid */
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% -10%, rgba(200,255,0,0.04) 0%, transparent 70%),
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* ── Header ────────────────────────────────────────────── */
+header {
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2.5rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+}
+
+header::after {
+  content:'';
+  position:absolute; bottom:-1px; left:0;
+  width:60px; height:1px;
+  background: linear-gradient(90deg, var(--accent), transparent);
+}
+
+.logo { display:flex; align-items:center; gap:.85rem; }
+.logo h1 {
+  font-family:'Syne',sans-serif; font-weight:800;
+  font-size:1.8rem; letter-spacing:-2px;
+  color:var(--accent); line-height:1;
+  text-shadow: 0 0 30px rgba(200,255,0,0.25);
+}
+
+.logo-divider {
+  width:1px; height:18px;
+  background: var(--border2);
+}
+
+.logo .sub {
+  font-family:'Inter',sans-serif;
+  font-size:10.5px; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--muted2);
+  font-weight:400;
+}
+
+.badge {
+  font-family:'JetBrains Mono',monospace;
+  font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted2);
+  border:1px solid var(--border2);
+  background: var(--surface2);
+  padding:.3rem .75rem; border-radius:20px;
+  display:flex; align-items:center; gap:.45rem;
+}
+
+.badge::before {
+  content:'';
+  width:5px; height:5px; border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 6px var(--accent);
+  flex-shrink:0;
+}
+
+/* ── Container ─────────────────────────────────────────── */
+.container { width:100%; max-width:700px; display:flex; flex-direction:column; gap:1rem; }
+
+/* ── Upload zone ───────────────────────────────────────── */
+.upload-zone {
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:3.5rem 2rem;
+  text-align:center;
+  cursor:pointer;
+  transition:border-color .25s, background .25s, box-shadow .25s;
+  position:relative;
+  background:var(--surface);
+  user-select:none;
+  overflow:hidden;
+}
+
+.upload-zone::before {
+  content:'';
+  position:absolute; inset:0;
+  background: radial-gradient(ellipse 60% 50% at 50% 100%, rgba(200,255,0,0.04) 0%, transparent 70%);
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .3s;
+}
+
+.upload-zone:hover::before,
+.upload-zone.drag-over::before { opacity:1; }
+
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color:rgba(200,255,0,.35);
+  background: var(--surface2);
+  box-shadow: 0 0 0 1px rgba(200,255,0,.08), 0 20px 60px rgba(0,0,0,.4);
+}
+
+.upload-zone input[type="file"] {
+  position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%;
+}
+
+.upload-icon {
+  width:52px; height:52px; margin:0 auto 1.25rem;
+  border:1px solid var(--border2); border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.4rem; background:var(--surface3);
+  transition:border-color .25s, background .25s, transform .25s;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);
+}
+
+.upload-zone:hover .upload-icon {
+  border-color:rgba(200,255,0,.4);
+  background:rgba(200,255,0,.06);
+  transform:scale(1.05);
+}
+
+.upload-label {
+  color:var(--muted2); font-size:13px;
+  font-family:'Inter',sans-serif; font-weight:400;
+}
+.upload-label strong { color:var(--text); font-weight:500; }
+.upload-formats {
+  margin-top:.5rem; font-size:10px; color:var(--muted);
+  letter-spacing:.12em; font-family:'JetBrains Mono',monospace;
+}
+
+/* ── Preview ───────────────────────────────────────────── */
+#preview-wrap {
+  display:none; position:relative;
+  border-radius:var(--r); overflow:hidden;
+  border:1px solid var(--border2); background:#030306;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+}
+
+#preview-img { width:100%; max-height:440px; object-fit:contain; display:block; }
+
+#clear-btn {
+  position:absolute; top:.75rem; right:.75rem;
+  background:rgba(5,5,10,.88); backdrop-filter:blur(12px);
+  border:1px solid var(--border2); color:var(--muted2);
+  padding:.35rem .75rem; border-radius:20px; cursor:pointer;
+  font-family:'Inter',sans-serif; font-size:11px; font-weight:500;
+  letter-spacing:.02em; transition:all .15s;
+}
+#clear-btn:hover { color:var(--error); border-color:rgba(255,77,106,.4); background:rgba(255,77,106,.08); }
+
+/* ── Tags ──────────────────────────────────────────────── */
+#tags-row { display:none; gap:.4rem; flex-wrap:wrap; align-items:center; }
+
+.tag-label {
+  font-family:'Inter',sans-serif;
+  font-size:10px; color:var(--muted); text-transform:uppercase;
+  letter-spacing:.1em; margin-right:.1rem;
+}
+
+.tag {
+  padding:.25rem .65rem; font-size:10px; border-radius:20px;
+  text-transform:uppercase; letter-spacing:.08em; font-weight:500;
+  border:1px solid var(--border2); color:var(--muted2); background:var(--surface2);
+  font-family:'Inter',sans-serif;
+  transition:all .15s;
+}
+
+.tag.subject {
+  border-color:rgba(200,255,0,.25); color:var(--accent);
+  background:var(--accent-dim);
+}
+
+.tag.language {
+  border-color:rgba(0,255,200,.25); color:var(--accent2);
+  background:var(--accent2-dim);
+}
+
+/* ── Input row ─────────────────────────────────────────── */
+.input-row {
+  display:flex; gap:.6rem;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:var(--r);
+  padding:.35rem .35rem .35rem .9rem;
+  transition:border-color .2s, box-shadow .2s;
+}
+
+.input-row:focus-within {
+  border-color:rgba(200,255,0,.3);
+  box-shadow:0 0 0 3px rgba(200,255,0,.06);
+}
+
+#question {
+  flex:1; background:transparent; border:none;
+  color:var(--text); font-family:'Inter',sans-serif;
+  font-size:13.5px; padding:.5rem 0; outline:none;
+  min-width:0; font-weight:400;
+}
+
+#question::placeholder { color:var(--muted2); }
+
+#analyse-btn {
+  background:var(--accent); color:#000; border:none;
+  border-radius:var(--r-sm);
+  font-family:'Syne',sans-serif;
+  font-weight:700; font-size:12px; padding:.6rem 1.3rem;
+  cursor:pointer; transition:filter .15s, transform .1s, box-shadow .15s;
+  white-space:nowrap; letter-spacing:.04em; text-transform:uppercase; flex-shrink:0;
+}
+#analyse-btn:hover {
+  filter:brightness(1.1);
+  box-shadow:0 0 20px rgba(200,255,0,.3);
+}
+#analyse-btn:active { transform:scale(.96); }
+#analyse-btn:disabled { opacity:.3; cursor:not-allowed; filter:none; box-shadow:none; }
+
+/* ── Progress bar ──────────────────────────────────────── */
+#progress { height:2px; background:var(--border); overflow:hidden; display:none; border-radius:2px; }
+#progress.active { display:block; }
+#progress-inner {
+  height:100%; width:35%;
+  background:linear-gradient(90deg,transparent,var(--accent),var(--accent2),transparent);
+  animation:sweep 1.4s ease-in-out infinite;
+}
+@keyframes sweep { 0%{transform:translateX(-120%)} 100%{transform:translateX(420%)} }
+
+/* ── Result box ────────────────────────────────────────── */
+#result-box {
+  display:none; background:var(--surface);
+  border:1px solid var(--border2); border-radius:var(--r); overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.35);
+  animation:slideUp .25s cubic-bezier(.16,1,.3,1) both;
+}
+
+@keyframes slideUp {
+  from { opacity:0; transform:translateY(8px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+.result-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:.65rem 1rem; background:var(--surface2);
+  border-bottom:1px solid var(--border);
+}
+
+.rhl { display:flex; align-items:center; gap:.55rem; }
+
+.pulse {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--accent); flex-shrink:0;
+  box-shadow:0 0 6px rgba(200,255,0,.5);
+}
+
+.pulse.on {
+  animation:pulsate .9s ease-in-out infinite;
+  box-shadow:0 0 10px rgba(200,255,0,.6);
+}
+
+@keyframes pulsate { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.2;transform:scale(.6)} }
+
+.result-header span {
+  font-family:'Inter',sans-serif;
+  font-size:11px; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--muted2); font-weight:500;
+}
+
+#copy-btn {
+  display:none; background:none;
+  border:1px solid var(--border2); color:var(--muted2);
+  padding:.25rem .75rem; border-radius:20px;
+  font-family:'Inter',sans-serif; font-size:10px; font-weight:500;
+  letter-spacing:.04em; text-transform:uppercase;
+  cursor:pointer; transition:all .15s;
+}
+#copy-btn:hover { color:var(--text); border-color:var(--muted2); background:var(--surface3); }
+#copy-btn.copied { color:var(--accent); border-color:rgba(200,255,0,.35); background:var(--accent-dim); }
+
+/* ── Answer text ───────────────────────────────────────── */
+#result-text {
+  padding:1.35rem 1.1rem; color:#cccce0;
+  font-family:'Inter',sans-serif;
+  font-size:13.5px; line-height:1.85; word-break:break-word;
+}
+
+#result-text h1,#result-text h2,#result-text h3 {
+  font-family:'Syne',sans-serif; color:var(--text); margin:.9rem 0 .35rem; line-height:1.3;
+}
+#result-text h1{font-size:1.1rem} #result-text h2{font-size:1rem} #result-text h3{font-size:.9rem;color:var(--muted2)}
+#result-text p{margin-bottom:.65rem} #result-text p:last-child{margin-bottom:0}
+#result-text strong{color:var(--text);font-weight:600}
+#result-text em{color:var(--muted2)}
+
+#result-text code{
+  font-family:'JetBrains Mono',monospace;
+  background:var(--surface3);border:1px solid var(--border2);
+  border-radius:5px;padding:.12em .45em;font-size:12px;color:var(--accent2)
+}
+#result-text pre{
+  font-family:'JetBrains Mono',monospace;
+  background:#030308;border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:1rem;overflow-x:auto;margin:.7rem 0
+}
+#result-text pre code{background:none;border:none;padding:0;color:#a8d8f0;font-size:12px}
+#result-text ul,#result-text ol{padding-left:1.5rem;margin-bottom:.55rem}
+#result-text li{margin-bottom:.25rem}
+#result-text hr{border:none;border-top:1px solid var(--border);margin:.9rem 0}
+#result-text blockquote{
+  border-left:2px solid rgba(200,255,0,.4);padding-left:.9rem;
+  color:var(--muted2);margin:.6rem 0;font-style:italic;
+}
+#result-text table{width:100%;border-collapse:collapse;font-size:12.5px;margin:.6rem 0}
+#result-text th{
+  background:var(--surface3);color:var(--muted2);
+  padding:.4rem .75rem;border:1px solid var(--border2);
+  text-align:left;font-weight:600;font-family:'Inter',sans-serif;
+}
+#result-text td{padding:.35rem .75rem;border:1px solid var(--border)}
+
+.cursor-blink {
+  display:inline-block; width:2px; height:15px;
+  background:var(--accent); vertical-align:text-bottom;
+  border-radius:1px; animation:blink .7s steps(1) infinite; margin-left:2px;
+  box-shadow:0 0 6px var(--accent);
+}
+@keyframes blink{50%{opacity:0}}
+
+/* ── Toast ─────────────────────────────────────────────── */
+#toast {
+  position:fixed; bottom:1.75rem; left:50%;
+  transform:translateX(-50%) translateY(70px);
+  background:var(--surface2);
+  border:1px solid var(--border2);
+  backdrop-filter:blur(16px);
+  color:var(--muted2); padding:.55rem 1.1rem; border-radius:20px;
+  font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none; z-index:9999; white-space:nowrap;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.ok{color:var(--accent);border-color:rgba(200,255,0,.3)}
+#toast.error{color:var(--error);border-color:rgba(255,77,106,.3)}
+
+footer{
+  margin-top:3rem;font-size:10px;letter-spacing:.15em;
+  text-transform:uppercase;color:var(--muted);opacity:.4;
+  font-family:'Inter',sans-serif;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <h1>Lens</h1>
+    <div class="logo-divider"></div>
+    <span class="sub">Photo Analyser</span>
+  </div>
+  <span class="badge">claude-opus-4-5</span>
+</header>
+
+<div class="container">
+
+  <div class="upload-zone" id="upload-zone">
+    <input type="file" id="file-input" accept="image/*" />
+    <div class="upload-icon">📎</div>
+    <p class="upload-label"><strong>Drop image here</strong> or click to browse</p>
+    <p class="upload-formats">JPG · PNG · WEBP · GIF · BMP</p>
+  </div>
+
+  <div id="preview-wrap">
+    <img id="preview-img" src="" alt="Preview" />
+    <button id="clear-btn">✕ remove</button>
+  </div>
+
+  <div id="tags-row"><span class="tag-label">detected:</span></div>
+
+  <div id="progress"><div id="progress-inner"></div></div>
+
+  <div class="input-row">
+    <input type="text" id="question" placeholder="Ask anything, or leave blank for full analysis…" disabled />
+    <button id="analyse-btn" disabled>Ask →</button>
+  </div>
+
+  <div id="result-box">
+    <div class="result-header">
+      <div class="rhl">
+        <div class="pulse" id="pulse-dot"></div>
+        <span id="result-label">answer</span>
+      </div>
+      <button id="copy-btn">copy</button>
+    </div>
+    <div id="result-text"></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+<footer>Lens · Powered by Anthropic</footer>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────────────────────────────────────────
+const API_KEY = 'sk_25PN1Hh5I1pGLgVcUuvkrAINfOJRBfGp';
+const MODEL   = 'claude-opus-4-5';
+const URL     = 'https://api.anthropic.com/v1/messages';
+const HDR     = {
+  'Content-Type': 'application/json',
+  'x-api-key': API_KEY,
+  'anthropic-version': '2023-06-01',
+  'anthropic-dangerous-direct-browser-access': 'true'
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROMPTS
+// Two-pass system:
+//   Pass 1 — READ: Extract every piece of text, numbers, formulas, options
+//             from the image verbatim. This gives the model a perfect text
+//             transcript to reason over, removing visual ambiguity.
+//   Pass 2 — SOLVE: Given the transcript + image, solve/answer with precision.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SYS_TRANSCRIBE = `You are a precise OCR and content-extraction engine.
+
+Your ONLY job: read the image and output a complete, verbatim transcript of ALL text, numbers, symbols, equations, answer options, labels, and any other written content you can see.
+
+Output format:
+- Use plain text, preserving the original structure (numbered questions, lettered options, etc.)
+- For math/science: reproduce every symbol, subscript, superscript, fraction, and equation exactly
+- For foreign language text: copy it exactly, preserving accents and special characters
+- Do NOT answer, solve, translate, or comment — only transcribe
+- If the image has no readable text, output: [NO TEXT]`;
+
+const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects. You will be given:
+1. A verbatim transcript of text extracted from an image
+2. The original image itself
+3. (Optionally) a specific question from the user
+
+Your task: produce the correct, precise answer.
+
+━━━ CORE RULES ━━━
+• OUTPUT ONLY THE ANSWER. No "I can see…", no "Based on the image…", no "Looking at this…", no preamble of any kind. Start with the answer.
+• No meta-commentary. Never mention the transcript, the image, or your reasoning process.
+• No filler: "Great!", "Certainly!", "I hope this helps!" — none of that.
+• Be correct above all else. Think carefully before writing.
+
+━━━ SUBJECT-SPECIFIC RULES ━━━
+
+MATHEMATICS / ALGEBRA / CALCULUS / STATISTICS
+• Work through each step internally, then present clean working.
+• Final answer always on its own line: **Answer: [value with units if applicable]**
+• If multiple parts (a, b, c…): answer each in order.
+
+MULTIPLE CHOICE (any subject)
+• State the correct letter and option text: **B) The mitochondria**
+• Nothing else unless the question asks for explanation.
+
+FILL-IN-THE-BLANK
+• Give only the exact word(s) that fill the blank.
+
+SCIENCE (Physics / Chemistry / Biology)
+• For calculations: show formula → substitution → result.
+• For theory questions: give the precise factual answer.
+
+LANGUAGES (German, French, Spanish, Polish, Italian, Latin, etc.)
+• Translate accurately and naturally.
+• If grammar is tested (conjugation, case, tense): give the correct form with a one-line note only if it aids understanding.
+
+HISTORY / GEOGRAPHY
+• Give specific facts: names, dates, places — no vague generalisations.
+
+LITERATURE / READING COMPREHENSION
+• Answer based strictly on what the text says.
+
+MULTIPLE QUESTIONS IN ONE IMAGE
+• Number your answers to match the question numbers exactly.
+
+DIAGRAMS / CHARTS / GRAPHS
+• Read values precisely. State what the visual shows, then answer what's asked.
+
+━━━ FORMATTING ━━━
+• Use **bold** to highlight final answers.
+• Use numbered lists when answering multiple questions.
+• Use code blocks for code or chemical formulas when helpful.
+• Keep it tight — no padding.`;
+
+const SYS_CLASSIFY = `Output ONLY raw JSON, no markdown, no extra text.
+Format: {"subjects":["Tag1","Tag2"],"isSchool":true}
+Tags are exact subject names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
+Max 3 tags. isSchool=true if the image is homework/exam/textbook/exercise.`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DOM
+// ─────────────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const uploadZone  = $('upload-zone');
+const fileInput   = $('file-input');
+const previewWrap = $('preview-wrap');
+const previewImg  = $('preview-img');
+const clearBtn    = $('clear-btn');
+const tagsRow     = $('tags-row');
+const progressEl  = $('progress');
+const questionEl  = $('question');
+const analyseBtn  = $('analyse-btn');
+const resultBox   = $('result-box');
+const resultText  = $('result-text');
+const resultLabel = $('result-label');
+const pulseDot    = $('pulse-dot');
+const copyBtn     = $('copy-btn');
+const toastEl     = $('toast');
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────────────
+let imgB64    = null;
+let imgMime   = 'image/jpeg';
+let busy      = false;
+let rawAnswer = '';  // stores plain text for copy
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE LOADING
+// ─────────────────────────────────────────────────────────────────────────────
+uploadZone.addEventListener('dragover',  e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', ()  => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault(); uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0]; if (f) loadFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) { toast('Not an image file', 'error'); return; }
+  imgMime = file.type || 'image/jpeg';
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data    = e.target.result;
+    imgB64        = data.split(',')[1];
+    previewImg.src = data;
+    previewWrap.style.display = 'block';
+    uploadZone.style.display  = 'none';
+    questionEl.disabled  = false;
+    analyseBtn.disabled  = false;
+    clearResult();
+    classify();  // background — no await
+  };
+  reader.readAsDataURL(file);
+}
+
+clearBtn.addEventListener('click', () => {
+  imgB64 = null; imgMime = 'image/jpeg';
+  previewImg.src = ''; previewWrap.style.display = 'none';
+  uploadZone.style.display = 'block'; fileInput.value = '';
+  questionEl.disabled = analyseBtn.disabled = true;
+  clearResult(); clearTags();
+});
+
+function clearResult() {
+  resultBox.style.display = 'none';
+  resultText.innerHTML    = '';
+  copyBtn.style.display   = 'none';
+  rawAnswer = '';
+}
+
+function clearTags() {
+  tagsRow.querySelectorAll('.tag').forEach(t => t.remove());
+  tagsRow.style.display = 'none';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLASSIFY (background, silent)
+// ─────────────────────────────────────────────────────────────────────────────
+const LANGS = new Set(['german','french','spanish','polish','english','italian','latin','russian','chinese','japanese','arabic','portuguese','dutch','swedish','danish','czech','hungarian','romanian','turkish','korean']);
+
+async function classify() {
+  try {
+    const raw = await callAPI(SYS_CLASSIFY, 'Classify this image.', 150);
+    let p;
+    try { p = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { return; }
+    clearTags();
+    (p.subjects || []).slice(0,3).forEach(s => {
+      const span = document.createElement('span');
+      span.className = LANGS.has(s.toLowerCase()) ? 'tag language' : 'tag subject';
+      span.textContent = s;
+      tagsRow.appendChild(span);
+    });
+    if (tagsRow.querySelectorAll('.tag').length) tagsRow.style.display = 'flex';
+  } catch {}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN ANALYSIS — two-pass: transcribe → solve
+// ─────────────────────────────────────────────────────────────────────────────
+analyseBtn.addEventListener('click', run);
+questionEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !busy) run(); });
+
+async function run() {
+  if (!imgB64 || busy) return;
+  busy = true;
+  analyseBtn.disabled = true;
+  progressEl.classList.add('active');
+  clearResult();
+
+  const q = questionEl.value.trim();
+  resultLabel.textContent = q ? 'answer' : 'analysis';
+  resultBox.style.display = 'block';
+  pulseDot.classList.add('on');
+  resultText.innerHTML = '<span class="cursor-blink"></span>';
+
+  try {
+    // ── Pass 1: Transcribe ──────────────────────────────────────────────────
+    const transcript = await callAPI(
+      SYS_TRANSCRIBE,
+      'Extract all text and content from this image verbatim.',
+      800
+    );
+
+    // ── Pass 2: Solve ───────────────────────────────────────────────────────
+    const solvePrompt = `TRANSCRIPT OF IMAGE CONTENT:
+${transcript}
+
+${q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in this image.'}`;
+
+    const answer = await callAPI(SYS_SOLVE, solvePrompt, 1500);
+    rawAnswer = answer;
+
+    pulseDot.classList.remove('on');
+    renderMD(resultText, answer);
+    copyBtn.style.display = 'block';
+
+  } catch(err) {
+    pulseDot.classList.remove('on');
+    toast((err.message || 'Error').slice(0, 80), 'error');
+    resultBox.style.display = 'none';
+    console.error(err);
+  } finally {
+    busy = false;
+    analyseBtn.disabled = false;
+    progressEl.classList.remove('active');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API CALL
+// ─────────────────────────────────────────────────────────────────────────────
+async function callAPI(system, userText, maxTokens) {
+  const res = await fetch(URL, {
+    method: 'POST',
+    headers: HDR,
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: imgMime, data: imgB64 } },
+          { type: 'text', text: userText }
+        ]
+      }]
+    })
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+  return (data.content?.[0]?.text || '').trim();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COPY — uses fallback for environments where clipboard API may fail
+// ─────────────────────────────────────────────────────────────────────────────
+copyBtn.addEventListener('click', async () => {
+  const text = rawAnswer;
+  if (!text) return;
+  let ok = false;
+  // Method 1: Clipboard API
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+  }
+  // Method 2: execCommand fallback
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch {}
+  }
+  if (ok) {
+    copyBtn.textContent = '✓ copied';
+    copyBtn.classList.add('copied');
+    toast('Copied!', 'ok');
+    setTimeout(() => { copyBtn.textContent = 'copy'; copyBtn.classList.remove('copied'); }, 2000);
+  } else {
+    toast('Copy failed — try Ctrl+A / Cmd+A', 'error');
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARKDOWN RENDERER
+// ─────────────────────────────────────────────────────────────────────────────
+function renderMD(el, md) {
+  // 1. Protect fenced code blocks
+  const codeBlocks = [];
+  let s = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    codeBlocks.push(`<pre><code>${esc(code.trim())}</code></pre>`);
+    return `\x02CB${codeBlocks.length - 1}\x03`;
+  });
+  // 2. Protect inline code
+  const inCode = [];
+  s = s.replace(/`([^`\n]+)`/g, (_, c) => {
+    inCode.push(`<code>${esc(c)}</code>`);
+    return `\x02IC${inCode.length - 1}\x03`;
+  });
+  // 3. Escape HTML
+  s = esc(s);
+  // 4. Restore protected blocks
+  s = s.replace(/\x02CB(\d+)\x03/g, (_, i) => codeBlocks[+i]);
+  s = s.replace(/\x02IC(\d+)\x03/g, (_, i) => inCode[+i]);
+  // 5. Headers
+  s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  s = s.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
+  s = s.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
+  // 6. Bold + italic
+  s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+  s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+  // 7. HR
+  s = s.replace(/^(---+|___+|\*\*\*+)$/gm, '<hr>');
+  // 8. Blockquote
+  s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  // 9. Unordered lists
+  s = s.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, block => {
+    const items = block.trim().split('\n')
+      .map(l => `<li>${l.replace(/^[ \t]*[-*+] /, '')}</li>`).join('');
+    return `<ul>${items}</ul>`;
+  });
+  // 10. Ordered lists
+  s = s.replace(/((?:^[ \t]*\d+\. .+\n?)+)/gm, block => {
+    const items = block.trim().split('\n')
+      .map(l => `<li>${l.replace(/^[ \t]*\d+\. /, '')}</li>`).join('');
+    return `<ol>${items}</ol>`;
+  });
+  // 11. Paragraphs
+  const out = s.split(/\n{2,}/).map(block => {
+    block = block.trim(); if (!block) return '';
+    if (/^<(h[1-3]|ul|ol|pre|hr|blockquote)/.test(block)) return block;
+    return `<p>${block.replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
+  el.innerHTML = out;
+}
+
+function esc(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────────────────────────────────────────
+let _tt;
+function toast(msg, type = '') {
+  clearTimeout(_tt);
+  toastEl.textContent = msg;
+  toastEl.className = `show ${type}`;
+  _tt = setTimeout(() => toastEl.className = '', 3000);
+}
+</script>
+</body>
+</html>
