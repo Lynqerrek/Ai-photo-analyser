@@ -390,6 +390,57 @@ footer{
   font-family:'Inter',sans-serif;
 }
 
+/* ── Structured task/answer blocks ────────────────────────── */
+.task-block {
+  border:1px solid var(--border2);
+  border-radius:var(--r-sm);
+  overflow:hidden;
+  margin-bottom:.75rem;
+  animation:slideUp .2s ease both;
+}
+.task-block:last-child { margin-bottom:0; }
+
+.task-label {
+  display:flex; align-items:baseline; gap:.75rem;
+  padding:.6rem .9rem;
+  background:var(--surface2);
+  border-bottom:1px solid var(--border);
+}
+
+.task-number {
+  font-family:'Syne',sans-serif; font-weight:800;
+  font-size:1rem; color:var(--accent2);
+  line-height:1; flex-shrink:0;
+  text-shadow:0 0 12px rgba(0,255,200,.3);
+}
+
+.task-text {
+  font-family:'Inter',sans-serif; font-size:13px;
+  color:var(--muted2); font-weight:400; line-height:1.5;
+}
+.task-text strong { color:var(--text); }
+
+.answer-block {
+  padding:.75rem .9rem;
+  background:var(--surface);
+  font-family:'Inter',sans-serif; font-size:13.5px;
+  line-height:1.85; color:#cccce0;
+}
+
+/* answer text overrides — accent color for key values */
+.answer-block strong {
+  color:var(--accent);
+  font-weight:600;
+}
+
+.answer-block p { margin-bottom:.5rem; }
+.answer-block p:last-child { margin-bottom:0; }
+.answer-block br + br { display:none; }
+
+.answer-block em { color:var(--muted2); }
+.answer-block ul,.answer-block ol { padding-left:1.4rem; margin-bottom:.4rem; }
+.answer-block li { margin-bottom:.15rem; }
+
 /* ── Mode switcher ─────────────────────────────────────── */
 .mode-row {
   display:none; gap:.5rem;
@@ -606,71 +657,60 @@ Rules:
 - If truly no readable text anywhere: output [NO TEXT]
 - Never say you cannot see an image or that no image was provided — one always is`;
 
-const SYS_SOLVE = `You are a friendly, smart helper — like that one classmate who actually gets it and explains things in a way that just makes sense. You receive content from an image and answer naturally.
+const SYS_SOLVE = `You are a friendly, smart helper — like that classmate who actually gets it. You receive content from an image and answer naturally.
 
 ━━━ LANGUAGE ━━━
 Always reply in the same language the user writes in. Polish → Polish. English → English. Never switch.
 
 ━━━ TONE ━━━
-- Casual, warm, natural — like texting a smart friend
-- Never sound like a computer or a textbook
+- Casual, warm, natural — like a smart friend helping with homework
+- Never sound like a computer or textbook
 - Short and clear — get to the point but make it easy to follow
-- A little personality is fine, but stay focused on the answer
+
+━━━ CRITICAL — STRUCTURED OUTPUT FORMAT ━━━
+When the image contains multiple tasks, questions, or exercises (e.g. 1. 2. 3. or a) b) c)), you MUST use this exact tag format so the UI can display them beautifully:
+
+[TASK:1]Question or task text here[/TASK]
+[ANSWER]Your answer here[/ANSWER]
+
+[TASK:2]Question or task text here[/TASK]
+[ANSWER]Your answer here[/ANSWER]
+
+Rules for structured output:
+- Use [TASK:N] for the question/task label and text — this renders as a numbered header
+- Use [ANSWER] for your answer — this renders highlighted in accent color
+- Every task must have both a [TASK] and an [ANSWER] block
+- Inside [ANSWER] blocks, write math step by step on separate lines like on paper
+- Inside [ANSWER] you can use **bold** for the final result
+- Do NOT put any text outside the tags when there are multiple tasks — everything must be inside a tag pair
+- Only use free text (no tags) when there is just a single question with no numbering
 
 ━━━ WRITING STYLE FOR MATH & SCIENCE ━━━
-Write exactly like a student would on paper in school — not like a computer printout.
-- Use normal handwriting-style notation: x^2 instead of x², 2/3 instead of fractions rendered weirdly
-- Write steps line by line like you would on paper:
+Write like a student on paper — not a computer printout:
+- Steps line by line:
   3x + 6 = 15
-  3x = 15 - 6
   3x = 9
   x = 3
-- No excessive symbols, no LaTeX, no code formatting for math
-- Units written naturally: "5 meters", "30°C", "12 km/h"
-- Final answer on its own line, clear: "So x = 3" or "The answer is 42 m/s"
+- No LaTeX, no code blocks for math
+- Units naturally: "5 meters", "30°C"
+- End with: So **x = 3** or The answer is **42 m/s**
 
 ━━━ DO NOT ━━━
-- Don't say "Based on the transcript" or "The image shows" or "I can see that"
+- Don't say "Based on the transcript" or "The image shows"
 - Don't mention a transcript was provided
-- Don't refuse by saying there's no image — you always have the content
-- Don't write math like a programmer (no console-style output, no weird symbols)
-- Don't add filler like "I hope this helps!" or "Feel free to ask more!"
+- Don't refuse by saying there's no image
+- Don't add filler like "I hope this helps!"
 - Don't repeat the question back
 
-━━━ BY QUESTION TYPE ━━━
-
-MATH / ALGEBRA / CALCULUS / GEOMETRY / STATS
-Write steps like on paper. End with "So the answer is [value]" or "x = [value]" on its own line.
-
-MULTIPLE CHOICE
-Just say which one is correct and why in one sentence: "It's B — photosynthesis is the process where plants use sunlight to make food."
-
-FILL-IN-THE-BLANK
-Give the word and briefly say why if it's not obvious.
-
-SCIENCE (Physics / Chemistry / Biology)
-For calculations write it out step by step like school notes. For theory, explain it simply like you're telling a friend.
-
-LANGUAGES (German, French, Spanish, Polish, Italian, Latin…)
-Give the correct translation or grammatical form. If it's a grammar exercise, show the correct form and explain the rule briefly in plain words.
-
-HISTORY / GEOGRAPHY
-Give the answer and one sentence of context so it actually sticks.
-
-LITERATURE / COMPREHENSION
-Answer from the text in plain, easy language.
-
-MULTIPLE QUESTIONS
-Number them to match the original. Keep each answer short and clear.
-
-GENERAL IMAGE
-Describe it naturally like you're telling someone what you see.
-
-━━━ FORMAT ━━━
-- **Bold** the final answer or key term
-- Numbered list only for multiple questions
-- Normal readable paragraphs for explanations
-- No code blocks for math — write it out like on paper`;
+━━━ BY TYPE ━━━
+MULTIPLE CHOICE → "It's B) — [option text], because [one sentence reason]."
+FILL-IN-THE-BLANK → The word + brief reason if not obvious
+MATH → Steps on separate lines, bold final answer
+SCIENCE → Step by step for calc, simple explanation for theory
+LANGUAGES → Correct form + brief grammar note if needed
+HISTORY/GEOGRAPHY → Answer + one sentence context
+LITERATURE → Answer from text in plain language
+SINGLE QUESTION → Normal flowing answer, no tags needed`;
 
 const SYS_CLASSIFY = `Output ONLY a raw JSON object. No markdown fences, no explanation, no text of any kind outside the JSON.
 Format exactly: {"subjects":["Tag1","Tag2"],"isSchool":true}
@@ -924,22 +964,63 @@ copyBtn.addEventListener('click', async () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MARKDOWN RENDERER
+// RENDERER — handles [TASK:N]...[/TASK] + [ANSWER]...[/ANSWER] blocks
+// plus standard markdown for everything else
 // ─────────────────────────────────────────────────────────────────────────────
 function renderMD(el, md) {
+  // Check if response uses structured task/answer format
+  if (/\[TASK:\d+\]/.test(md)) {
+    el.innerHTML = renderStructured(md);
+    return;
+  }
+  // Otherwise render as normal markdown
+  el.innerHTML = renderMarkdown(md);
+}
+
+function renderStructured(md) {
+  // Parse all [TASK:N]...[/TASK] and [ANSWER]...[/ANSWER] pairs
+  const taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
+  const answerRe = /\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
+
+  const tasks   = [];
+  const answers = [];
+  let m;
+
+  while ((m = taskRe.exec(md))   !== null) tasks.push({ n: m[1], text: m[2].trim() });
+  while ((m = answerRe.exec(md)) !== null) answers.push(m[1].trim());
+
+  let html = '';
+  tasks.forEach((task, i) => {
+    const ans = answers[i] || '';
+    html += `
+      <div class="task-block">
+        <div class="task-label">
+          <span class="task-number">${task.n}</span>
+          <span class="task-text">${renderInline(task.text)}</span>
+        </div>
+        <div class="answer-block">${renderMarkdown(ans)}</div>
+      </div>
+    `;
+  });
+  return html;
+}
+
+function renderMarkdown(md) {
   const codeBlocks = [];
-  let s = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, _l, code) => {
+  let s = md.replace(/```(\w*)
+?([\s\S]*?)```/g, (_, _l, code) => {
     codeBlocks.push(`<pre><code>${esc(code.trim())}</code></pre>`);
-    return `\x02CB${codeBlocks.length - 1}\x03`;
+    return `CB${codeBlocks.length - 1}`;
   });
   const inCode = [];
-  s = s.replace(/`([^`\n]+)`/g, (_, c) => {
+  s = s.replace(/`([^`
+]+)`/g, (_, c) => {
     inCode.push(`<code>${esc(c)}</code>`);
-    return `\x02IC${inCode.length - 1}\x03`;
+    return `IC${inCode.length - 1}`;
   });
   s = esc(s);
-  s = s.replace(/\x02CB(\d+)\x03/g, (_, i) => codeBlocks[+i]);
-  s = s.replace(/\x02IC(\d+)\x03/g, (_, i) => inCode[+i]);
+  s = s.replace(/CB(\d+)/g, (_, i) => codeBlocks[+i]);
+  s = s.replace(/IC(\d+)/g, (_, i) => inCode[+i]);
   s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   s = s.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
   s = s.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
@@ -947,23 +1028,37 @@ function renderMD(el, md) {
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
-  s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+  s = s.replace(/_([^_
+]+)_/g, '<em>$1</em>');
   s = s.replace(/^(---+|___+|\*\*\*+)$/gm, '<hr>');
   s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-  s = s.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, block => {
-    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^[ \t]*[-*+] /, '')}</li>`).join('');
+  s = s.replace(/((?:^[ 	]*[-*+] .+
+?)+)/gm, block => {
+    const items = block.trim().split('
+').map(l => `<li>${l.replace(/^[ 	]*[-*+] /, '')}</li>`).join('');
     return `<ul>${items}</ul>`;
   });
-  s = s.replace(/((?:^[ \t]*\d+\. .+\n?)+)/gm, block => {
-    const items = block.trim().split('\n').map(l => `<li>${l.replace(/^[ \t]*\d+\. /, '')}</li>`).join('');
+  s = s.replace(/((?:^[ 	]*\d+\. .+
+?)+)/gm, block => {
+    const items = block.trim().split('
+').map(l => `<li>${l.replace(/^[ 	]*\d+\. /, '')}</li>`).join('');
     return `<ol>${items}</ol>`;
   });
-  const out = s.split(/\n{2,}/).map(block => {
+  const out = s.split(/
+{2,}/).map(block => {
     block = block.trim(); if (!block) return '';
     if (/^<(h[1-3]|ul|ol|pre|hr|blockquote)/.test(block)) return block;
-    return `<p>${block.replace(/\n/g, '<br>')}</p>`;
-  }).join('\n');
-  el.innerHTML = out;
+    return `<p>${block.replace(/
+/g, '<br>')}</p>`;
+  }).join('
+');
+  return out;
+}
+
+function renderInline(text) {
+  return esc(text)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
 
 function esc(t) {
