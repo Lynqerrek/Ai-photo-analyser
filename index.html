@@ -389,6 +389,118 @@ footer{
   text-transform:uppercase;color:var(--muted);opacity:.4;
   font-family:'Inter',sans-serif;
 }
+
+/* ── Mode switcher ─────────────────────────────────────── */
+.mode-row {
+  display:none; gap:.5rem;
+}
+.mode-btn {
+  flex:1; padding:.6rem 1rem;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r); color:var(--muted2);
+  font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
+  cursor:pointer; transition:all .2s; text-align:center;
+  letter-spacing:.02em;
+}
+.mode-btn:hover { border-color:var(--accent); color:var(--text); }
+.mode-btn.active {
+  background:var(--accent-dim); border-color:rgba(200,255,0,.4);
+  color:var(--accent);
+}
+
+/* ── Ask mode UI ───────────────────────────────────────── */
+#ask-box {
+  display:none; flex-direction:column; gap:.85rem;
+  background:var(--surface); border:1px solid var(--border2);
+  border-radius:var(--r); overflow:hidden;
+  animation:slideUp .25s cubic-bezier(.16,1,.3,1) both;
+}
+
+.ask-header {
+  display:flex; align-items:center; gap:.55rem;
+  padding:.65rem 1rem; background:var(--surface2);
+  border-bottom:1px solid var(--border);
+}
+
+.ask-header span {
+  font-family:'Inter',sans-serif; font-size:11px;
+  letter-spacing:.06em; text-transform:uppercase;
+  color:var(--muted2); font-weight:500;
+}
+
+.ask-progress-dots {
+  display:flex; gap:.4rem; margin-left:auto;
+}
+
+.ask-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--border2); transition:background .3s;
+}
+.ask-dot.done { background:var(--accent); box-shadow:0 0 6px rgba(200,255,0,.5); }
+.ask-dot.active { background:var(--accent2); animation:pulsate .9s ease-in-out infinite; }
+
+.ask-body { padding:.1rem 1rem 1rem; display:flex; flex-direction:column; gap:.75rem; }
+
+.ask-question {
+  font-family:'Inter',sans-serif; font-size:14.5px;
+  font-weight:600; color:var(--text); line-height:1.45;
+}
+
+.ask-choices {
+  display:flex; flex-direction:column; gap:.45rem;
+}
+
+.ask-choice {
+  display:flex; align-items:center; gap:.75rem;
+  padding:.7rem .9rem;
+  background:var(--surface2); border:1px solid var(--border2);
+  border-radius:var(--r-sm); cursor:pointer;
+  font-family:'Inter',sans-serif; font-size:13px; color:var(--muted2);
+  transition:all .15s; user-select:none;
+}
+.ask-choice:hover { border-color:rgba(200,255,0,.3); color:var(--text); background:var(--surface3); }
+.ask-choice.selected { border-color:rgba(200,255,0,.5); color:var(--accent); background:var(--accent-dim); }
+.ask-choice.correct  { border-color:rgba(0,255,200,.5); color:var(--accent2); background:rgba(0,255,200,.07); }
+.ask-choice.wrong    { border-color:rgba(255,77,106,.4); color:var(--error); background:rgba(255,77,106,.06); opacity:.7; }
+
+.ask-letter {
+  width:22px; height:22px; border-radius:5px; flex-shrink:0;
+  background:var(--surface3); border:1px solid var(--border2);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Syne',sans-serif; font-size:11px; font-weight:700;
+  color:var(--muted2); transition:all .15s;
+}
+.ask-choice:hover .ask-letter  { border-color:rgba(200,255,0,.3); color:var(--accent); }
+.ask-choice.selected .ask-letter{ border-color:rgba(200,255,0,.5); color:var(--accent); background:rgba(200,255,0,.1); }
+.ask-choice.correct  .ask-letter{ border-color:rgba(0,255,200,.5); color:var(--accent2); background:rgba(0,255,200,.1); }
+.ask-choice.wrong    .ask-letter{ border-color:rgba(255,77,106,.4); color:var(--error); }
+
+.ask-feedback {
+  font-family:'Inter',sans-serif; font-size:13px;
+  color:var(--muted2); line-height:1.6;
+  padding:.6rem .8rem;
+  background:var(--surface3); border-radius:var(--r-sm);
+  border-left:2px solid var(--accent2);
+  display:none;
+}
+.ask-feedback.visible { display:block; animation:slideUp .2s ease both; }
+
+.ask-next-btn {
+  align-self:flex-end;
+  background:var(--accent); color:#000; border:none;
+  border-radius:var(--r-sm); font-family:'Syne',sans-serif;
+  font-weight:700; font-size:11px; padding:.5rem 1.1rem;
+  cursor:pointer; transition:filter .15s, transform .1s;
+  letter-spacing:.05em; text-transform:uppercase; display:none;
+}
+.ask-next-btn:hover { filter:brightness(1.1); }
+.ask-next-btn:active { transform:scale(.96); }
+
+.ask-loading {
+  padding:1.5rem 1rem; text-align:center;
+  font-family:'Inter',sans-serif; font-size:12px; color:var(--muted2);
+  display:flex; align-items:center; justify-content:center; gap:.6rem;
+}
 </style>
 </head>
 <body>
@@ -418,6 +530,12 @@ footer{
 
   <div id="tags-row"><span class="tag-label">detected:</span></div>
 
+  <!-- Mode switcher — shows after image is loaded -->
+  <div class="mode-row" id="mode-row">
+    <button class="mode-btn active" id="mode-analyse" onclick="switchMode('analyse')">🔍 Analyse</button>
+    <button class="mode-btn" id="mode-ask"     onclick="switchMode('ask')">💬 Ask Mode</button>
+  </div>
+
   <div id="progress"><div id="progress-inner"></div></div>
 
   <div class="input-row">
@@ -434,6 +552,23 @@ footer{
       <button id="copy-btn">copy</button>
     </div>
     <div id="result-text"></div>
+  </div>
+
+  <!-- Ask mode box -->
+  <div id="ask-box">
+    <div class="ask-header">
+      <div class="pulse" id="ask-pulse"></div>
+      <span id="ask-header-label">generating questions…</span>
+      <div class="ask-progress-dots" id="ask-dots">
+        <div class="ask-dot" id="dot-0"></div>
+        <div class="ask-dot" id="dot-1"></div>
+      </div>
+    </div>
+    <div class="ask-body" id="ask-body">
+      <div class="ask-loading" id="ask-loading">
+        <span class="cursor-blink"></span> Reading image…
+      </div>
+    </div>
   </div>
 
 </div>
@@ -471,64 +606,71 @@ Rules:
 - If truly no readable text anywhere: output [NO TEXT]
 - Never say you cannot see an image or that no image was provided — one always is`;
 
-const SYS_SOLVE = `You are a smart, helpful assistant like ChatGPT — friendly, clear, and easy to understand. You will receive a transcript of content extracted from an image, and optionally a question from the user.
+const SYS_SOLVE = `You are a friendly, smart helper — like that one classmate who actually gets it and explains things in a way that just makes sense. You receive content from an image and answer naturally.
 
 ━━━ LANGUAGE ━━━
-Always respond in the same language the user is writing in. If they write in Polish, answer in Polish. If English, answer in English. Match their language exactly.
+Always reply in the same language the user writes in. Polish → Polish. English → English. Never switch.
 
-━━━ TONE & STYLE ━━━
-- Sound natural and human, like a smart friend helping with homework
-- Be clear and easy to understand — explain things simply, not robotically
-- Keep answers concise but complete — don't waffle, don't be too brief either
-- If something needs a short explanation to make the answer make sense, include it
-- Use a warm, helpful tone — like ChatGPT would
+━━━ TONE ━━━
+- Casual, warm, natural — like texting a smart friend
+- Never sound like a computer or a textbook
+- Short and clear — get to the point but make it easy to follow
+- A little personality is fine, but stay focused on the answer
 
-━━━ WHAT NOT TO DO ━━━
+━━━ WRITING STYLE FOR MATH & SCIENCE ━━━
+Write exactly like a student would on paper in school — not like a computer printout.
+- Use normal handwriting-style notation: x^2 instead of x², 2/3 instead of fractions rendered weirdly
+- Write steps line by line like you would on paper:
+  3x + 6 = 15
+  3x = 15 - 6
+  3x = 9
+  x = 3
+- No excessive symbols, no LaTeX, no code formatting for math
+- Units written naturally: "5 meters", "30°C", "12 km/h"
+- Final answer on its own line, clear: "So x = 3" or "The answer is 42 m/s"
+
+━━━ DO NOT ━━━
 - Don't say "Based on the transcript" or "The image shows" or "I can see that"
-- Don't mention that you received a transcript
-- Don't refuse to answer by claiming there's no image — you always have the content
-- Don't add unnecessary disclaimers or filler like "I hope this helps!"
-- Don't repeat the question back before answering
+- Don't mention a transcript was provided
+- Don't refuse by saying there's no image — you always have the content
+- Don't write math like a programmer (no console-style output, no weird symbols)
+- Don't add filler like "I hope this helps!" or "Feel free to ask more!"
+- Don't repeat the question back
 
-━━━ HOW TO ANSWER BY TYPE ━━━
+━━━ BY QUESTION TYPE ━━━
 
-MATH / ALGEBRA / CALCULUS / STATISTICS
-- Show the steps cleanly so the user can follow along
-- End clearly with the final answer highlighted: **Answer: [value + units]**
-- Multiple parts → label them (a), (b), etc.
+MATH / ALGEBRA / CALCULUS / GEOMETRY / STATS
+Write steps like on paper. End with "So the answer is [value]" or "x = [value]" on its own line.
 
 MULTIPLE CHOICE
-- Give the correct letter and option: **B) Photosynthesis**
-- Add a one-sentence reason only if it genuinely helps understanding
+Just say which one is correct and why in one sentence: "It's B — photosynthesis is the process where plants use sunlight to make food."
 
 FILL-IN-THE-BLANK
-- Give the correct word(s), maybe one short sentence explaining why if useful
+Give the word and briefly say why if it's not obvious.
 
 SCIENCE (Physics / Chemistry / Biology)
-- Calculations: show formula → numbers → result
-- Theory: explain simply and accurately in 1-3 sentences
+For calculations write it out step by step like school notes. For theory, explain it simply like you're telling a friend.
 
 LANGUAGES (German, French, Spanish, Polish, Italian, Latin…)
-- Give the correct translation or form
-- Briefly explain grammar if the question is about grammar
+Give the correct translation or grammatical form. If it's a grammar exercise, show the correct form and explain the rule briefly in plain words.
 
 HISTORY / GEOGRAPHY
-- Give the specific answer (name, date, place) with a brief sentence of context if it helps
+Give the answer and one sentence of context so it actually sticks.
 
 LITERATURE / COMPREHENSION
-- Answer based on the text, explain briefly in plain language
+Answer from the text in plain, easy language.
 
 MULTIPLE QUESTIONS
-- Number your answers to match the question numbers
+Number them to match the original. Keep each answer short and clear.
 
-GENERAL / DESCRIPTION
-- Describe what's in the image clearly and naturally
+GENERAL IMAGE
+Describe it naturally like you're telling someone what you see.
 
 ━━━ FORMAT ━━━
-- **Bold** key answers and important terms
-- Numbered lists for multiple questions
-- Short paragraphs for explanations
-- Code blocks for code or chemical formulas`;
+- **Bold** the final answer or key term
+- Numbered list only for multiple questions
+- Normal readable paragraphs for explanations
+- No code blocks for math — write it out like on paper`;
 
 const SYS_CLASSIFY = `Output ONLY a raw JSON object. No markdown fences, no explanation, no text of any kind outside the JSON.
 Format exactly: {"subjects":["Tag1","Tag2"],"isSchool":true}
@@ -590,6 +732,12 @@ function loadFile(file) {
     analyseBtn.disabled  = false;
     clearResult();
     classify();
+    document.getElementById('mode-row').style.display = 'flex';
+    currentMode = 'analyse';
+    document.getElementById('mode-analyse').classList.add('active');
+    document.getElementById('mode-ask').classList.remove('active');
+    document.querySelector('.input-row').style.display = '';
+    document.getElementById('ask-box').style.display = 'none';
   };
   reader.readAsDataURL(file);
 }
@@ -600,6 +748,10 @@ clearBtn.addEventListener('click', () => {
   uploadZone.style.display = 'block'; fileInput.value = '';
   questionEl.disabled = analyseBtn.disabled = true;
   clearResult(); clearTags();
+  document.getElementById('mode-row').style.display = 'none';
+  document.getElementById('ask-box').style.display = 'none';
+  document.querySelector('.input-row').style.display = '';
+  currentMode = 'analyse';
 });
 
 function clearResult() {
@@ -816,6 +968,209 @@ function renderMD(el, md) {
 
 function esc(t) {
   return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MODE SWITCHER
+// ─────────────────────────────────────────────────────────────────────────────
+let currentMode = 'analyse';
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-analyse').classList.toggle('active', mode === 'analyse');
+  document.getElementById('mode-ask').classList.toggle('active', mode === 'ask');
+
+  const inputRow  = document.querySelector('.input-row');
+  const resultBox = document.getElementById('result-box');
+  const askBox    = document.getElementById('ask-box');
+
+  if (mode === 'analyse') {
+    inputRow.style.display  = '';
+    resultBox.style.display = 'none';
+    askBox.style.display    = 'none';
+    clearResult();
+  } else {
+    inputRow.style.display  = 'none';
+    resultBox.style.display = 'none';
+    askBox.style.display    = 'flex';
+    startAskMode();
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASK MODE
+// AI generates 2 questions with 3 answer choices each from the image.
+// User clicks a choice → AI reveals if correct + short explanation.
+// ─────────────────────────────────────────────────────────────────────────────
+const SYS_GENERATE_QS = `You receive a verbatim transcript of image content.
+Generate exactly 2 multiple-choice questions about the content. Each question must have exactly 3 answer choices.
+One choice must be correct, the other two plausible but wrong.
+
+Respond ONLY with raw JSON — no markdown, no explanation, nothing else outside the JSON.
+Format exactly:
+[
+  {
+    "q": "Question text here?",
+    "choices": ["Choice A text", "Choice B text", "Choice C text"],
+    "correct": 0,
+    "explanation": "Short friendly explanation of why the answer is correct."
+  },
+  {
+    "q": "Second question text here?",
+    "choices": ["Choice A text", "Choice B text", "Choice C text"],
+    "correct": 1,
+    "explanation": "Short friendly explanation of why the answer is correct."
+  }
+]
+
+Rules:
+- Questions must be specific and answerable from the image content
+- Choices should be realistic — wrong ones should look plausible
+- "correct" is the 0-based index of the correct choice (0, 1, or 2)
+- Explanation should be 1-2 sentences, friendly tone, like a teacher explaining
+- Use the same language as the image content`;
+
+let askQuestions   = [];
+let askCurrent     = 0;
+let askAnswered    = false;
+
+async function startAskMode() {
+  if (!imgB64) return;
+  askQuestions = [];
+  askCurrent   = 0;
+  askAnswered  = false;
+
+  const askPulse  = document.getElementById('ask-pulse');
+  const askLabel  = document.getElementById('ask-header-label');
+  const askBody   = document.getElementById('ask-body');
+  const dot0      = document.getElementById('dot-0');
+  const dot1      = document.getElementById('dot-1');
+
+  askPulse.classList.add('on');
+  askLabel.textContent = 'generating questions…';
+  dot0.className = 'ask-dot';
+  dot1.className = 'ask-dot';
+  askBody.innerHTML = '<div class="ask-loading"><span class="cursor-blink"></span> Reading image…</div>';
+
+  try {
+    // Step 1 — transcribe image
+    const visionContent = [
+      { type: 'image_url', image_url: { url: imgDataUrl } },
+      { type: 'text', text: 'Extract all text and content from this image verbatim.' }
+    ];
+    const transcript = await callMistral(SYS_TRANSCRIBE, visionContent, MODEL_VISION);
+
+    askBody.innerHTML = '<div class="ask-loading"><span class="cursor-blink"></span> Writing questions…</div>';
+    await sleep(2000);
+
+    // Step 2 — generate questions from transcript
+    const prompt = `TRANSCRIPT:
+${transcript}
+
+Generate 2 multiple-choice questions with 3 choices each.`;
+    const raw = await callMistral(SYS_GENERATE_QS, prompt, MODEL_SOLVER);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
+    } catch {
+      throw new Error('Could not parse questions — try again');
+    }
+
+    if (!Array.isArray(parsed) || parsed.length < 2) throw new Error('Not enough questions generated');
+    askQuestions = parsed.slice(0, 2);
+
+    askPulse.classList.remove('on');
+    askLabel.textContent = 'question 1 of 2';
+    dot0.className = 'ask-dot active';
+
+    renderAskQuestion(0);
+
+  } catch(err) {
+    askPulse.classList.remove('on');
+    askBody.innerHTML = `<div class="ask-loading" style="color:var(--error)">Failed: ${err.message}</div>`;
+  }
+}
+
+function renderAskQuestion(idx) {
+  const q      = askQuestions[idx];
+  const body   = document.getElementById('ask-body');
+  const label  = document.getElementById('ask-header-label');
+  const dot0   = document.getElementById('dot-0');
+  const dot1   = document.getElementById('dot-1');
+  const letters = ['A', 'B', 'C'];
+
+  label.textContent = `question ${idx + 1} of 2`;
+  if (idx === 0) { dot0.className = 'ask-dot active'; dot1.className = 'ask-dot'; }
+  else           { dot0.className = 'ask-dot done';   dot1.className = 'ask-dot active'; }
+
+  askAnswered = false;
+
+  const choicesHTML = q.choices.map((c, i) => `
+    <div class="ask-choice" data-idx="${i}" onclick="pickChoice(${idx}, ${i})">
+      <div class="ask-letter">${letters[i]}</div>
+      <span>${c}</span>
+    </div>
+  `).join('');
+
+  body.innerHTML = `
+    <div class="ask-question">${q.q}</div>
+    <div class="ask-choices" id="choices-${idx}">${choicesHTML}</div>
+    <div class="ask-feedback" id="feedback-${idx}"></div>
+    <button class="ask-next-btn" id="next-btn-${idx}" onclick="nextQuestion(${idx})">
+      ${idx === 0 ? 'Next question →' : 'See results →'}
+    </button>
+  `;
+}
+
+function pickChoice(qIdx, choiceIdx) {
+  if (askAnswered) return;
+  askAnswered = true;
+
+  const q        = askQuestions[qIdx];
+  const correct  = q.correct;
+  const choices  = document.querySelectorAll(`#choices-${qIdx} .ask-choice`);
+  const feedback = document.getElementById(`feedback-${qIdx}`);
+  const nextBtn  = document.getElementById(`next-btn-${qIdx}`);
+  const letters  = ['A', 'B', 'C'];
+
+  choices.forEach((el, i) => {
+    if (i === correct) el.classList.add('correct');
+    else if (i === choiceIdx && i !== correct) el.classList.add('wrong');
+    else el.style.opacity = '.4';
+  });
+
+  const gotIt = choiceIdx === correct;
+  feedback.textContent = (gotIt ? '✓ ' : '✗ ') + q.explanation;
+  feedback.className   = 'ask-feedback visible';
+  feedback.style.borderLeftColor = gotIt ? 'rgba(0,255,200,.5)' : 'rgba(255,77,106,.4)';
+  feedback.style.color = gotIt ? 'var(--accent2)' : '#cccce0';
+
+  nextBtn.style.display = 'flex';
+}
+
+function nextQuestion(idx) {
+  if (idx === 0) {
+    askCurrent = 1;
+    renderAskQuestion(1);
+  } else {
+    // Both done — show final screen
+    const dot0  = document.getElementById('dot-0');
+    const dot1  = document.getElementById('dot-1');
+    const label = document.getElementById('ask-header-label');
+    dot0.className = 'ask-dot done';
+    dot1.className = 'ask-dot done';
+    label.textContent = 'done!';
+
+    const body = document.getElementById('ask-body');
+    body.innerHTML = `
+      <div style="text-align:center; padding:.5rem 0 .25rem; font-family:'Inter',sans-serif; color:var(--muted2); font-size:13px;">
+        Questions answered! Switch back to Analyse mode to ask more.
+      </div>
+      <button class="ask-next-btn" style="align-self:center; margin:.25rem 0"
+        onclick="startAskMode()">Try again ↺</button>
+    `;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
