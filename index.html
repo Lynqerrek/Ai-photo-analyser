@@ -215,7 +215,17 @@ header::after {
 
 .tag.language {
   border-color:rgba(0,255,200,.25); color:var(--accent2);
-  background:var(--accent2-dim);
+  background:rgba(0,255,200,.06);
+}
+
+.tag.homework {
+  border-color:rgba(255,159,67,.25); color:#ff9f43;
+  background:rgba(255,159,67,.07);
+}
+
+.tag.general {
+  border-color:rgba(162,155,254,.25); color:#a29bfe;
+  background:rgba(162,155,254,.07);
 }
 
 /* ── Input row ─────────────────────────────────────────── */
@@ -872,9 +882,19 @@ LITERATURE → Answer from text in plain language
 SINGLE QUESTION → Normal flowing answer, no tags needed`;
 
 const SYS_CLASSIFY = `Output ONLY a raw JSON object. No markdown fences, no explanation, no text of any kind outside the JSON.
-Format exactly: {"subjects":["Tag1","Tag2"],"isSchool":true}
-Tags must be exact names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
-Max 3 tags. isSchool=true if the image contains homework, an exam, a textbook page, or a school exercise.
+Format exactly: {"subjects":["Tag1","Tag2"],"isSchool":false}
+
+Pick up to 3 tags that best describe the image. Choose from these categories:
+
+SCHOOL SUBJECTS: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy, Literature, Religion
+
+HOMEWORK TYPES: Homework, Essay, Test, Exam, Worksheet, Exercise, Notes, Diagram, Textbook
+
+GENERAL TOPICS: Nature, Animals, Food, Travel, Architecture, People, Sports, Gaming, Technology, Science, Space, Weather, Cars, Fashion, Fitness, Health, Music, Film, Books, Art, Photography
+
+DOCUMENT TYPES: Letter, Document, Receipt, Invoice, Menu, Form, Screenshot, Code, Chart, Graph, Map, Poster, Sign, Handwriting, Printed Text
+
+Set isSchool=true if the image is homework, a school exercise, exam, or textbook page. Otherwise false.
 You always have an image — never say otherwise.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1016,6 +1036,11 @@ async function callMistral(system, userContent, model, attempt = 0) {
 // ─────────────────────────────────────────────────────────────────────────────
 const LANGS = new Set(['german','french','spanish','polish','english','italian','latin','russian','chinese','japanese','arabic','portuguese','dutch','swedish','danish','czech','hungarian','romanian','turkish','korean']);
 
+// Tags that get special styling
+const SCHOOL_TAGS   = new Set(['math','algebra','calculus','geometry','statistics','physics','chemistry','biology','history','geography','english','german','french','spanish','polish','italian','latin','russian','computer science','economics','art','music','philosophy','literature','religion']);
+const HOMEWORK_TAGS = new Set(['homework','essay','test','exam','worksheet','exercise','notes','diagram','textbook']);
+const GENERAL_TAGS  = new Set(['nature','animals','food','travel','architecture','people','sports','gaming','technology','science','space','weather','cars','fashion','fitness','health','film','books','photography','letter','document','receipt','invoice','menu','form','screenshot','code','chart','graph','map','poster','sign','handwriting','printed text']);
+
 async function classify() {
   try {
     // Pixtral accepts image_url with base64 data URL directly
@@ -1029,7 +1054,11 @@ async function classify() {
     clearTags();
     (p.subjects || []).slice(0, 3).forEach(s => {
       const span = document.createElement('span');
-      span.className = LANGS.has(s.toLowerCase()) ? 'tag language' : 'tag subject';
+      const lo = s.toLowerCase();
+      if (LANGS.has(lo))          span.className = 'tag language';
+      else if (SCHOOL_TAGS.has(lo)) span.className = 'tag subject';
+      else if (HOMEWORK_TAGS.has(lo)) span.className = 'tag homework';
+      else                         span.className = 'tag general';
       span.textContent = s;
       tagsRow.appendChild(span);
     });
