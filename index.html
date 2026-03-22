@@ -399,7 +399,7 @@ footer{
     <div class="logo-divider"></div>
     <span class="sub">Photo Analyser</span>
   </div>
-  <span class="badge">pollinations · free</span>
+  <span class="badge">kimi k2.5 · free</span>
 </header>
 
 <div class="container">
@@ -443,19 +443,16 @@ footer{
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// LENS — Powered by Pollinations.AI
-// 100% free · no API key · no signup · no login · works on GitHub Pages
+// LENS — Pollinations.AI  (gen.pollinations.ai — correct 2026 endpoint)
+// pk_ key = publishable, frontend-safe, designed for exactly this use case
 //
-// VISION model  → openai (GPT-class vision, reads & transcribes image)
-// SOLVING model → openai (GPT-class reasoning, solves & answers)
-//
-// Endpoint: https://text.pollinations.ai/openai
-// Accepts base64 images directly. No auth required for anonymous usage.
+// VISION  → kimi       : Kimi K2.5 — 256K ctx, vision, reads image & extracts
+// SOLVING → kimi       : same model, text-only pass — best free reasoning
 // ─────────────────────────────────────────────────────────────────────────────
-
-const POLLINATIONS_URL = 'https://text.pollinations.ai/openai';
-const MODEL_VISION     = 'openai';   // vision-capable, reads images
-const MODEL_SOLVER     = 'openai';   // strong reasoning for answers
+const POLL_KEY = 'pk_hRh0AMfqL9ptwrFN';
+const POLL_URL = 'https://gen.pollinations.ai/v1/chat/completions';
+const MODEL_VISION = 'kimi';   // Kimi K2.5 — vision + 256K context
+const MODEL_SOLVER = 'kimi';   // same model, no image in pass 2 (faster)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROMPTS
@@ -464,67 +461,68 @@ const SYS_TRANSCRIBE = `You are a precise OCR and content-extraction engine.
 
 Your ONLY job: read the image and output a complete, verbatim transcript of ALL text, numbers, symbols, equations, answer options, labels, and any other written content you can see.
 
-Output format:
-- Use plain text, preserving the original structure (numbered questions, lettered options, etc.)
-- For math/science: reproduce every symbol, subscript, superscript, fraction, and equation exactly
-- For foreign language text: copy it exactly, preserving accents and special characters
+Output rules:
+- Plain text only, preserving original structure (numbered questions, lettered options, etc.)
+- Math/science: reproduce every symbol, subscript, superscript, fraction, equation exactly
+- Foreign language text: copy exactly, preserving all accents and special characters
 - Do NOT answer, solve, translate, or comment — only transcribe
-- If the image has no readable text, output: [NO TEXT]`;
+- If no readable text exists, output: [NO TEXT]`;
 
-const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects. You receive a verbatim transcript of text extracted from an image, and optionally a specific question from the user.
+const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects.
 
-Your task: produce the correct, precise answer.
+You receive a verbatim transcript of text extracted from an image, and optionally a question from the user.
+Produce the correct, precise answer.
 
-━━━ CORE RULES ━━━
-• OUTPUT ONLY THE ANSWER. No "I can see…", no "Based on the image…", no "Looking at this…", no preamble of any kind. Start directly with the answer.
-• No meta-commentary. Never mention the transcript, the image, or your reasoning process.
-• No filler phrases: no "Great!", "Certainly!", "I hope this helps!", nothing like that.
-• Be correct above all else. Think carefully before writing.
+━━━ ABSOLUTE RULES ━━━
+• Start DIRECTLY with the answer — zero preamble. No "I can see…", "Based on…", "Looking at…" ever.
+• Never mention the transcript, the image, or your process.
+• No filler: no "Great!", "Certainly!", "Of course!", "I hope this helps!" — nothing.
+• Correct above all else. Think before writing.
 
-━━━ SUBJECT-SPECIFIC RULES ━━━
+━━━ BY SUBJECT ━━━
 
-MATHEMATICS / ALGEBRA / CALCULUS / STATISTICS
-• Work through each step internally, then present clean working.
-• Final answer always on its own line: **Answer: [value with units if applicable]**
-• If multiple parts (a, b, c…): answer each in order.
+MATH / ALGEBRA / CALCULUS / STATISTICS
+• Work internally, show clean steps.
+• End with: **Answer: [value + units]**
+• Multiple parts → answer each labelled (a), (b), etc.
 
-MULTIPLE CHOICE (any subject)
-• State the correct letter and option text only: **B) The mitochondria**
-• Nothing else unless the question explicitly asks for explanation.
+MULTIPLE CHOICE
+• Correct letter + text only: **B) Photosynthesis**
+• No explanation unless explicitly asked.
 
 FILL-IN-THE-BLANK
-• Give only the exact word(s) that fill the blank. Nothing else.
+• Exact missing word(s) only.
 
-SCIENCE (Physics / Chemistry / Biology)
-• For calculations: show formula → substitution → result.
-• For theory questions: give the precise factual answer.
+PHYSICS / CHEMISTRY / BIOLOGY
+• Calculations: formula → substitution → result.
+• Theory: precise factual answer.
 
-LANGUAGES (German, French, Spanish, Polish, Italian, Latin, etc.)
-• Translate accurately and naturally.
-• If grammar is tested: give the correct form with a one-line note only if it genuinely aids understanding.
+LANGUAGES (German, French, Spanish, Polish, Italian, Latin…)
+• Accurate natural translation.
+• Grammar questions: correct form + one-line note if useful.
 
 HISTORY / GEOGRAPHY
-• Give specific facts: names, dates, places — no vague generalisations.
+• Specific facts: names, dates, places only.
 
-LITERATURE / READING COMPREHENSION
-• Answer based strictly on what the text says.
+LITERATURE / COMPREHENSION
+• Answer from the text strictly.
 
-MULTIPLE QUESTIONS IN ONE IMAGE
-• Number your answers to match the question numbers exactly.
+MULTIPLE QUESTIONS
+• Number answers to match question numbers exactly.
 
-DIAGRAMS / CHARTS / GRAPHS
-• Read values precisely. State what the visual shows, then answer what is asked.
+DIAGRAMS / CHARTS
+• Read values precisely. Answer what is asked.
 
-━━━ FORMATTING ━━━
-• Use **bold** to highlight final answers.
-• Use numbered lists when answering multiple questions.
-• Use code blocks for code or chemical formulas when helpful.
-• Keep it tight — no padding, no filler.`;
+━━━ FORMAT ━━━
+• **Bold** final answers.
+• Numbered lists for multiple questions.
+• Code blocks for code/formulas.
+• Tight — no padding.`;
 
-const SYS_CLASSIFY = `Output ONLY raw JSON, no markdown, no extra text, no explanation.
-Format exactly: {"subjects":["Tag1","Tag2"],"isSchool":true}
-Use exact subject names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
-Max 3 tags. isSchool=true if the image is homework/exam/textbook/exercise.`;
+const SYS_CLASSIFY = `Output ONLY raw JSON, no markdown, no text outside the JSON.
+Format: {"subjects":["Tag1","Tag2"],"isSchool":true}
+Subject names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
+Max 3 tags. isSchool=true if homework/exam/textbook/exercise.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DOM
@@ -568,7 +566,7 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) loadFile(fi
 
 function loadFile(file) {
   if (!file.type.startsWith('image/')) { toast('Not an image file', 'error'); return; }
-  imgMime = file.type || 'image/jpeg';
+  imgMime    = file.type || 'image/jpeg';
   const reader = new FileReader();
   reader.onload = e => {
     imgDataUrl     = e.target.result;
@@ -606,48 +604,42 @@ function clearTags() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POLLINATIONS API CALL
-// No key, no auth — just POST to text.pollinations.ai/openai
-// Supports base64 images via data URL in image_url field
+// Correct 2026 endpoint: gen.pollinations.ai/v1/chat/completions
+// pk_ key sent as Bearer token — designed for frontend use
+// Vision: pass image as base64 data URL in image_url content part
 // ─────────────────────────────────────────────────────────────────────────────
-async function callAI(systemPrompt, userText, includeImage, maxTokens) {
+async function callAI(system, userText, withImage, model) {
   const userContent = [];
-
-  // Always put text first
+  if (withImage && imgDataUrl) {
+    userContent.push({ type: 'image_url', image_url: { url: imgDataUrl } });
+  }
   userContent.push({ type: 'text', text: userText });
 
-  // Attach image if needed (as base64 data URL)
-  if (includeImage && imgDataUrl) {
-    userContent.push({
-      type: 'image_url',
-      image_url: { url: imgDataUrl }
-    });
-  }
-
-  const body = {
-    model: includeImage ? MODEL_VISION : MODEL_SOLVER,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user',   content: userContent }
-    ],
-    max_tokens: maxTokens,
-    temperature: 0.1,
-    referrer: 'lens-photo-analyser'
-  };
-
-  const res = await fetch(POLLINATIONS_URL, {
+  const res = await fetch(POLL_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${POLL_KEY}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user',   content: userContent }
+      ],
+      max_tokens: withImage ? 800 : 2000,
+      temperature: 0.1
+    })
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => res.statusText);
-    throw new Error(`API error ${res.status}: ${errText.slice(0, 120)}`);
+    throw new Error(`Pollinations ${res.status}: ${errText.slice(0, 120)}`);
   }
 
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Empty response from API');
+  if (!text) throw new Error('Empty response from Pollinations');
   return text.trim();
 }
 
@@ -658,7 +650,7 @@ const LANGS = new Set(['german','french','spanish','polish','english','italian',
 
 async function classify() {
   try {
-    const raw = await callAI(SYS_CLASSIFY, 'Classify this image.', true, 120);
+    const raw = await callAI(SYS_CLASSIFY, 'Classify this image.', true, MODEL_VISION);
     let p;
     try { p = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { return; }
     clearTags();
@@ -674,8 +666,8 @@ async function classify() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN ANALYSIS — two-pass
-// Pass 1: vision call  → verbatim transcript of image content
-// Pass 2: text call    → solve/answer using transcript (no image needed)
+// Pass 1 → vision call : Kimi reads image, outputs verbatim transcript
+// Pass 2 → text call   : Kimi reasons from transcript, no image needed
 // ─────────────────────────────────────────────────────────────────────────────
 analyseBtn.addEventListener('click', run);
 questionEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !busy) run(); });
@@ -694,24 +686,26 @@ async function run() {
   resultText.innerHTML = '<span class="cursor-blink"></span>';
 
   try {
-    // Pass 1 — vision: extract all text/content from image
+    // Pass 1 — Kimi reads the image, extracts content verbatim
     const transcript = await callAI(
       SYS_TRANSCRIBE,
       'Extract all text and content from this image verbatim.',
-      true,   // include image
-      700
+      true,          // with image
+      MODEL_VISION
     );
 
-    // Pass 2 — reasoning: solve from transcript (no image needed, faster)
-    const solvePrompt = `TRANSCRIPT OF IMAGE CONTENT:\n${transcript}\n\n${
-      q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in this image. Answer all questions found.'
-    }`;
+    // Pass 2 — Kimi solves from clean transcript (no image = faster)
+    const solvePrompt =
+      `TRANSCRIPT OF IMAGE CONTENT:\n${transcript}\n\n` +
+      (q
+        ? `USER QUESTION: ${q}`
+        : 'Task: Analyse and solve everything in this image. Answer all questions found.');
 
     const answer = await callAI(
       SYS_SOLVE,
       solvePrompt,
-      false,  // text only — faster and just as accurate
-      1500
+      false,         // text only
+      MODEL_SOLVER
     );
 
     rawAnswer = answer;
@@ -745,8 +739,7 @@ copyBtn.addEventListener('click', async () => {
       const ta = document.createElement('textarea');
       ta.value = rawAnswer;
       ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
-      document.body.appendChild(ta);
-      ta.focus(); ta.select();
+      document.body.appendChild(ta); ta.focus(); ta.select();
       ok = document.execCommand('copy');
       document.body.removeChild(ta);
     } catch {}
@@ -757,7 +750,7 @@ copyBtn.addEventListener('click', async () => {
     toast('Copied!', 'ok');
     setTimeout(() => { copyBtn.textContent = 'copy'; copyBtn.classList.remove('copied'); }, 2000);
   } else {
-    toast('Copy failed — select text manually', 'error');
+    toast('Copy failed — select manually', 'error');
   }
 });
 
