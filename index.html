@@ -399,7 +399,7 @@ footer{
     <div class="logo-divider"></div>
     <span class="sub">Photo Analyser</span>
   </div>
-  <span class="badge">claude-opus-4-5</span>
+  <span class="badge">qwen2.5-vl-72b · free</span>
 </header>
 
 <div class="container">
@@ -439,21 +439,18 @@ footer{
 </div>
 
 <div id="toast"></div>
-<footer>Lens · Powered by Anthropic</footer>
+<footer>Lens · Powered by OpenRouter · Free</footer>
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFIG
+// CONFIG — OpenRouter free tier (no credit card, no cost ever)
+// 1. Sign up free at openrouter.ai  (no credit card needed)
+// 2. openrouter.ai/keys → Create Key → paste it below
 // ─────────────────────────────────────────────────────────────────────────────
-const API_KEY = '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';
-const MODEL   = 'claude-opus-4-5';
-const URL     = 'https://api.anthropic.com/v1/messages';
-const HDR     = {
-  'Content-Type': 'application/json',
-  'x-api-key': API_KEY,
-  'anthropic-version': '2023-06-01',
-  'anthropic-dangerous-direct-browser-access': 'true'
-};
+const API_KEY        = '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';
+const MODEL_PRIMARY  = 'qwen/qwen2.5-vl-72b-instruct:free';
+const MODEL_FALLBACK = 'mistralai/mistral-small-3.1-24b-instruct:free';
+const OR_URL         = 'https://openrouter.ai/api/v1/chat/completions';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROMPTS
@@ -684,28 +681,52 @@ ${q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in thi
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API CALL
+// API CALL — OpenRouter (OpenAI-compatible, CORS-safe)
+// • Sends text prompt first, then image (OpenRouter recommendation)
+// • Safe HTTP-Referer that works from both file:// and https://
+// • Auto-retries with fallback model if primary fails
 // ─────────────────────────────────────────────────────────────────────────────
-async function callAPI(system, userText, maxTokens) {
-  const res = await fetch(URL, {
+function getHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${API_KEY}`,
+    'HTTP-Referer': 'https://lens-analyser.app',
+    'X-Title': 'Lens Photo Analyser'
+  };
+}
+
+async function callAPI(system, userText, maxTokens, model) {
+  const useModel = model || MODEL_PRIMARY;
+  // OpenRouter: text first, then image (per their docs)
+  const userContent = [
+    { type: 'text', text: userText },
+    { type: 'image_url', image_url: { url: `data:${imgMime};base64,${imgB64}` } }
+  ];
+
+  const res = await fetch(OR_URL, {
     method: 'POST',
-    headers: HDR,
+    headers: getHeaders(),
     body: JSON.stringify({
-      model: MODEL,
+      model: useModel,
       max_tokens: maxTokens,
-      system,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: imgMime, data: imgB64 } },
-          { type: 'text', text: userText }
-        ]
-      }]
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: userContent }
+      ]
     })
   });
+
   const data = await res.json();
+
+  // Retry with fallback if primary model is unavailable / rate-limited
+  if ((data.error || !data.choices?.[0]) && useModel !== MODEL_FALLBACK) {
+    console.warn('Primary model unavailable, switching to fallback:', data.error?.message || 'no choices');
+    return callAPI(system, userText, maxTokens, MODEL_FALLBACK);
+  }
+
   if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  return (data.content?.[0]?.text || '').trim();
+  if (!data.choices?.[0]) throw new Error('No response returned from model');
+  return (data.choices[0].message?.content || '').trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -809,8 +830,10 @@ function toast(msg, type = '') {
   clearTimeout(_tt);
   toastEl.textContent = msg;
   toastEl.className = `show ${type}`;
-  _tt = setTimeout(() => toastEl.className = '', 3000);
+  _tt = setTimeout(() => toastEl.className = '', 3500);
 }
+
+
 </script>
 </body>
 </html>
