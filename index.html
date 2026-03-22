@@ -998,125 +998,98 @@ copyBtn.addEventListener('click', async () => {
 // plus standard markdown for everything else
 // ─────────────────────────────────────────────────────────────────────────────
 function renderMD(el, md) {
-  // Check for clarification question
-  const clarifyMatch = md.match(/\[CLARIFY\]([\s\S]*?)\[\/CLARIFY\]/);
-  if (clarifyMatch) {
-    el.innerHTML = renderClarify(clarifyMatch[1].trim());
-    return;
-  }
-  // Check if response uses structured task/answer format
-  if (/\[TASK:\d+\]/.test(md)) {
-    el.innerHTML = renderStructured(md);
-    return;
-  }
-  // Otherwise render as normal markdown
+  var clarifyMatch = md.match(/\[CLARIFY\]([\s\S]*?)\[\/CLARIFY\]/);
+  if (clarifyMatch) { el.innerHTML = renderClarify(clarifyMatch[1].trim()); return; }
+  if (/\[TASK:\d+\]/.test(md)) { el.innerHTML = renderStructured(md); return; }
   el.innerHTML = renderMarkdown(md);
 }
 
 function renderClarify(question) {
-  return `
-    <div class="clarify-block">
-      <div class="clarify-icon">🤔</div>
-      <div class="clarify-text">${renderInline(question)}</div>
-    </div>
-  `;
+  return '<div class="clarify-block"><div class="clarify-icon">\uD83E\uDD14</div><div class="clarify-text">' + renderInline(question) + '</div></div>';
 }
 
 function renderStructured(md) {
-  // Parse interleaved [TASK:N]...[/TASK][ANSWER]...[/ANSWER] pairs in order
-  // This preserves the actual task number (1,2,3,4) from the AI output
-  const pairRe = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]\s*\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
-  let html = '';
-  let m;
-  let found = false;
-
+  var pairRe = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]\s*\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
+  var html = '';
+  var m;
+  var found = false;
   while ((m = pairRe.exec(md)) !== null) {
     found = true;
-    const num  = m[1];          // actual number from AI: 1, 2, 3, 4...
-    const task = m[2].trim();
-    const ans  = m[3].trim();
-    html += `
-      <div class="task-block">
-        <div class="task-label">
-          <span class="task-number">${num}.</span>
-          <span class="task-text">${renderInline(task)}</span>
-        </div>
-        <div class="answer-block">${renderMarkdown(ans)}</div>
-      </div>
-    `;
+    html += '<div class="task-block">'
+      + '<div class="task-label"><span class="task-number">' + m[1] + '.</span>'
+      + '<span class="task-text">' + renderInline(m[2].trim()) + '</span></div>'
+      + '<div class="answer-block">' + renderMarkdown(m[3].trim()) + '</div>'
+      + '</div>';
   }
-
-  // Fallback: if pairs didn't match cleanly, try loose parse
   if (!found) {
-    const taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
-    const answerRe = /\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
-    const tasks = [], answers = [];
+    var taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
+    var answerRe = /\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
+    var tasks = [], answers = [];
     while ((m = taskRe.exec(md))   !== null) tasks.push({ n: m[1], text: m[2].trim() });
     while ((m = answerRe.exec(md)) !== null) answers.push(m[1].trim());
-    tasks.forEach((task, i) => {
-      const ans = answers[i] || '';
-      html += `
-        <div class="task-block">
-          <div class="task-label">
-            <span class="task-number">${task.n}.</span>
-            <span class="task-text">${renderInline(task.text)}</span>
-          </div>
-          <div class="answer-block">${renderMarkdown(ans)}</div>
-        </div>
-      `;
+    tasks.forEach(function(task, i) {
+      html += '<div class="task-block">'
+        + '<div class="task-label"><span class="task-number">' + task.n + '.</span>'
+        + '<span class="task-text">' + renderInline(task.text) + '</span></div>'
+        + '<div class="answer-block">' + renderMarkdown(answers[i] || '') + '</div>'
+        + '</div>';
     });
   }
-
   return html || renderMarkdown(md);
 }
 
 function renderMarkdown(md) {
-  const codeBlocks = [];
-  let s = md.replace(/```(\w*)
-?([\s\S]*?)```/g, (_, _l, code) => {
-    codeBlocks.push(`<pre><code>${esc(code.trim())}</code></pre>`);
-    return `CB${codeBlocks.length - 1}`;
+  // protect code blocks
+  var codeBlocks = [];
+  var s = md.replace(/```[\w]*\n?([\s\S]*?)```/g, function(_, code) {
+    codeBlocks.push('<pre><code>' + esc(code.trim()) + '</code></pre>');
+    return '\x02CB' + (codeBlocks.length - 1) + '\x03';
   });
-  const inCode = [];
-  s = s.replace(/`([^`
-]+)`/g, (_, c) => {
-    inCode.push(`<code>${esc(c)}</code>`);
-    return `IC${inCode.length - 1}`;
+  // protect inline code
+  var inCode = [];
+  s = s.replace(/`([^`]+)`/g, function(_, c) {
+    inCode.push('<code>' + esc(c) + '</code>');
+    return '\x02IC' + (inCode.length - 1) + '\x03';
   });
+  // escape html
   s = esc(s);
-  s = s.replace(/CB(\d+)/g, (_, i) => codeBlocks[+i]);
-  s = s.replace(/IC(\d+)/g, (_, i) => inCode[+i]);
+  // restore protected blocks
+  s = s.replace(/\x02CB(\d+)\x03/g, function(_, i) { return codeBlocks[+i]; });
+  s = s.replace(/\x02IC(\d+)\x03/g, function(_, i) { return inCode[+i]; });
+  // headers
   s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   s = s.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
   s = s.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
+  // bold + italic
   s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
   s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
-  s = s.replace(/_([^_
-]+)_/g, '<em>$1</em>');
-  s = s.replace(/^(---+|___+|\*\*\*+)$/gm, '<hr>');
+  // hr
+  s = s.replace(/^---+$/gm, '<hr>');
+  // blockquote
   s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-  s = s.replace(/((?:^[ 	]*[-*+] .+
-?)+)/gm, block => {
-    const items = block.trim().split('
-').map(l => `<li>${l.replace(/^[ 	]*[-*+] /, '')}</li>`).join('');
-    return `<ul>${items}</ul>`;
+  // unordered list
+  s = s.replace(/((?:^[ \t]*[-*+] .+\n?)+)/gm, function(block) {
+    var items = block.trim().split('\n').map(function(l) {
+      return '<li>' + l.replace(/^[ \t]*[-*+] /, '') + '</li>';
+    }).join('');
+    return '<ul>' + items + '</ul>';
   });
-  s = s.replace(/((?:^[ 	]*\d+\. .+
-?)+)/gm, block => {
-    const items = block.trim().split('
-').map(l => `<li>${l.replace(/^[ 	]*\d+\. /, '')}</li>`).join('');
-    return `<ol>${items}</ol>`;
+  // ordered list
+  s = s.replace(/((?:^[ \t]*\d+\. .+\n?)+)/gm, function(block) {
+    var items = block.trim().split('\n').map(function(l) {
+      return '<li>' + l.replace(/^[ \t]*\d+\. /, '') + '</li>';
+    }).join('');
+    return '<ol>' + items + '</ol>';
   });
-  const out = s.split(/
-{2,}/).map(block => {
-    block = block.trim(); if (!block) return '';
+  // paragraphs
+  var out = s.split(/\n{2,}/).map(function(block) {
+    block = block.trim();
+    if (!block) return '';
     if (/^<(h[1-3]|ul|ol|pre|hr|blockquote)/.test(block)) return block;
-    return `<p>${block.replace(/
-/g, '<br>')}</p>`;
-  }).join('
-');
+    return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+  }).join('\n');
   return out;
 }
 
