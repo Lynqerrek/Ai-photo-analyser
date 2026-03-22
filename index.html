@@ -407,66 +407,103 @@ footer{
 
 /* ── Structured task/answer blocks ────────────────────────── */
 
-/* Outer wrapper — gives each task a colored left border strip */
-.task-block {
-  display:flex;
+/* Main task group wrapper */
+.task-group {
+  border:1px solid var(--border2);
   border-radius:var(--r-sm);
   overflow:hidden;
-  margin-bottom:1rem;
+  margin-bottom:.85rem;
   animation:slideUp .2s ease both;
-  box-shadow:0 2px 12px rgba(0,0,0,.25);
+  background:var(--surface);
 }
-.task-block:last-child { margin-bottom:0; }
+.task-group:last-child { margin-bottom:0; }
 
-/* Colored side stripe — the "this belongs to task N" signal */
-.task-stripe {
-  width:4px;
-  flex-shrink:0;
-  background:var(--stripe-color, var(--accent2));
-}
-
-/* Inner content area */
-.task-inner {
-  flex:1; min-width:0;
-  border:1px solid var(--border2);
-  border-left:none;
-  border-radius:0 var(--r-sm) var(--r-sm) 0;
-  overflow:hidden;
-}
-
+/* Main task header row */
 .task-label {
-  display:flex; align-items:center; gap:.8rem;
-  padding:.6rem .9rem;
+  display:flex; align-items:baseline; gap:.7rem;
+  padding:.65rem .9rem;
   background:var(--surface2);
   border-bottom:1px solid var(--border);
 }
 
 .task-number {
   font-family:'Syne',sans-serif; font-weight:800;
-  font-size:1.05rem; line-height:1; flex-shrink:0;
-  color:var(--stripe-color, var(--accent2));
-  min-width:1.4rem;
+  font-size:1rem; color:var(--text); line-height:1; flex-shrink:0;
 }
 
 .task-text {
-  font-family:'Inter',sans-serif; font-size:13px;
+  font-family:'Inter',sans-serif; font-size:13.5px;
   color:var(--text); font-weight:500; line-height:1.5;
 }
-.task-text strong { color:var(--accent); }
+.task-text strong { color:var(--accent); font-weight:600; }
 
+/* Main task answer (when no subtasks) */
 .answer-block {
-  padding:.8rem .9rem;
-  background:var(--surface);
+  padding:.75rem .9rem;
   font-family:'Inter',sans-serif; font-size:13.5px;
   line-height:1.85; color:#cccce0;
+  border-top:1px solid var(--border);
 }
-
+.answer-block:first-child { border-top:none; }
 .answer-block strong { color:var(--accent); font-weight:600; }
 .answer-block p { margin-bottom:.5rem; }
 .answer-block p:last-child { margin-bottom:0; }
 .answer-block em { color:var(--muted2); }
 .answer-block ul,.answer-block ol { padding-left:1.4rem; margin-bottom:.4rem; }
 .answer-block li { margin-bottom:.15rem; }
+
+/* Subtask container — indented under main task */
+.subtask-list {
+  border-top:1px solid var(--border);
+}
+
+/* Individual subtask row */
+.subtask-block {
+  display:flex;
+  border-bottom:1px solid var(--border);
+}
+.subtask-block:last-child { border-bottom:none; }
+
+/* Left indent line — visual "belongs to parent" connector */
+.subtask-indent {
+  width:2px;
+  flex-shrink:0;
+  background:var(--border2);
+  margin:0 0 0 1.35rem;
+}
+
+.subtask-inner {
+  flex:1; min-width:0; padding:0;
+}
+
+.subtask-label {
+  display:flex; align-items:baseline; gap:.6rem;
+  padding:.45rem .75rem .45rem .6rem;
+  background:var(--surface2);
+  border-bottom:1px solid var(--border);
+}
+
+.subtask-number {
+  font-family:'JetBrains Mono',monospace; font-weight:500;
+  font-size:11px; color:var(--muted2); line-height:1;
+  flex-shrink:0; letter-spacing:.03em;
+}
+
+.subtask-text {
+  font-family:'Inter',sans-serif; font-size:12.5px;
+  color:var(--muted2); font-weight:400; line-height:1.5;
+}
+.subtask-text strong { color:var(--text); }
+
+.subtask-answer {
+  padding:.5rem .75rem .5rem .6rem;
+  font-family:'Inter',sans-serif; font-size:13px;
+  line-height:1.8; color:#cccce0;
+  background:var(--surface);
+}
+.subtask-answer strong { color:var(--accent); font-weight:600; }
+.subtask-answer p { margin-bottom:.35rem; }
+.subtask-answer p:last-child { margin-bottom:0; }
 
 /* ── Mode switcher ─────────────────────────────────────── */
 .mode-row {
@@ -608,11 +645,8 @@ footer{
 
   <div id="tags-row"><span class="tag-label">detected:</span></div>
 
-  <!-- Mode switcher — shows after image is loaded -->
-  <div class="mode-row" id="mode-row">
-    <button class="mode-btn active" id="mode-analyse" onclick="switchMode('analyse')">🔍 Analyse</button>
-    <button class="mode-btn" id="mode-ask"     onclick="switchMode('ask')">💬 Ask Mode</button>
-  </div>
+  <!-- mode-row removed — ask mode only appears when AI needs clarification -->
+  <div class="mode-row" id="mode-row" style="display:none"></div>
 
   <div id="progress"><div id="progress-inner"></div></div>
 
@@ -695,23 +729,28 @@ Always reply in the same language the user writes in. Polish → Polish. English
 - Short and clear — get to the point but make it easy to follow
 
 ━━━ CRITICAL — STRUCTURED OUTPUT FORMAT ━━━
-When the image contains multiple numbered tasks/questions (1. 2. 3. or a) b) c)), use this EXACT tag format:
+You MUST answer EVERY SINGLE task/question visible. Do not skip any. If there are 6 tasks, output 6 blocks.
 
-[TASK:1]Exact question or task text[/TASK]
-[ANSWER]Your answer[/ANSWER]
+When the image has multiple numbered tasks (1. 2. 3. etc.), use this EXACT tag format:
 
-[TASK:2]Exact question or task text[/TASK]
-[ANSWER]Your answer[/ANSWER]
+[TASK:1]Main task text[/TASK]
+[ANSWER]Answer to task 1[/ANSWER]
 
-[TASK:3]Exact question or task text[/TASK]
-[ANSWER]Your answer[/ANSWER]
+If a task has subtasks (a, b, c or -1, -2 etc.), use SUBTASK tags nested inside:
 
-CRITICAL numbering rule: the number inside [TASK:N] MUST match the original task number exactly.
-If the image has tasks 1, 2, 3, 4 — output [TASK:1], [TASK:2], [TASK:3], [TASK:4].
-Never reset to 1. Never repeat a number. Always increment correctly.
-- Every task must have both [TASK:N]...[/TASK] and [ANSWER]...[/ANSWER] immediately after
-- Inside [ANSWER]: write math step by step on separate lines, **bold** the final result
-- Only use free text (no tags) for a single question with no numbering
+[TASK:2]Main task text[/TASK]
+[SUBTASK:2.1]Subtask text[/SUBTASK]
+[SUBTASK_ANSWER]Answer[/SUBTASK_ANSWER]
+[SUBTASK:2.2]Subtask text[/SUBTASK]
+[SUBTASK_ANSWER]Answer[/SUBTASK_ANSWER]
+
+CRITICAL rules:
+- Answer EVERY task. Never skip one. If you see 1, 2, 3, 4 — all four get blocks.
+- [TASK:N] number must match the original exactly. Never reset or repeat.
+- Subtask IDs use format PARENT.SUB — so task 2 subtasks are 2.1, 2.2, 2.3
+- Every [TASK] needs [ANSWER] OR at least one [SUBTASK]/[SUBTASK_ANSWER] pair
+- Inside answers: math step by step on separate lines, **bold** the final result
+- Only free text (no tags) when there is exactly one question with no numbering
 
 ━━━ WHEN TO ASK A CLARIFICATION QUESTION ━━━
 Sometimes you genuinely cannot give a correct answer without more info from the user.
@@ -1021,52 +1060,68 @@ function renderClarify(question) {
 }
 
 function renderStructured(md) {
-  // Stripe colors — cycles through these per task so each is visually distinct
-  var stripes = [
-    '#00ffc8',  // cyan-green   task 1
-    '#c8ff00',  // lime         task 2
-    '#ff9f43',  // orange       task 3
-    '#a29bfe',  // lavender     task 4
-    '#fd79a8',  // pink         task 5
-    '#74b9ff',  // sky blue     task 6
-    '#55efc4',  // mint         task 7
-    '#ffeaa7',  // yellow       task 8
-  ];
-
-  function taskBlock(num, taskText, answerText, colorIdx) {
-    var color = stripes[colorIdx % stripes.length];
-    return '<div class="task-block" style="--stripe-color:' + color + '">'
-      + '<div class="task-stripe"></div>'
-      + '<div class="task-inner">'
-      + '<div class="task-label">'
-      + '<span class="task-number">' + num + '.</span>'
-      + '<span class="task-text">' + renderInline(taskText) + '</span>'
-      + '</div>'
-      + '<div class="answer-block">' + renderMarkdown(answerText) + '</div>'
-      + '</div>'
-      + '</div>';
-  }
-
-  var pairRe = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]\s*\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
+  // Split the whole response into top-level task chunks
+  // Each chunk starts with [TASK:N] and ends before the next [TASK:N]
+  var chunkRe = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]([\s\S]*?)(?=\[TASK:\d+\]|$)/g;
   var html = '';
   var m;
   var found = false;
-  var idx = 0;
-  while ((m = pairRe.exec(md)) !== null) {
+
+  while ((m = chunkRe.exec(md)) !== null) {
     found = true;
-    html += taskBlock(m[1], m[2].trim(), m[3].trim(), idx++);
+    var taskNum  = m[1];
+    var taskText = m[2].trim();
+    var body     = m[3]; // everything after [/TASK] until next [TASK]
+
+    // Check if this task has subtasks
+    var hasSubtasks = /\[SUBTASK:/.test(body);
+
+    html += '<div class="task-group">';
+    html += '<div class="task-label">'
+      + '<span class="task-number">' + taskNum + '.</span>'
+      + '<span class="task-text">' + renderInline(taskText) + '</span>'
+      + '</div>';
+
+    if (!hasSubtasks) {
+      // Simple task — just an answer block
+      var ansMatch = body.match(/\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/);
+      var ansText  = ansMatch ? ansMatch[1].trim() : body.trim();
+      html += '<div class="answer-block">' + renderMarkdown(ansText) + '</div>';
+    } else {
+      // Has subtasks — render each one indented
+      html += '<div class="subtask-list">';
+      var subRe = /\[SUBTASK:([^\]]+)\]([\s\S]*?)\[\/SUBTASK\]\s*\[SUBTASK_ANSWER\]([\s\S]*?)\[\/SUBTASK_ANSWER\]/g;
+      var s;
+      while ((s = subRe.exec(body)) !== null) {
+        var subId   = s[1].trim();   // e.g. "2.1"
+        var subText = s[2].trim();
+        var subAns  = s[3].trim();
+        // Extract just the sub-number after the dot
+        var subNum  = subId.indexOf('.') !== -1 ? subId.split('.').pop() : subId;
+        html += '<div class="subtask-block">'
+          + '<div class="subtask-indent"></div>'
+          + '<div class="subtask-inner">'
+          + '<div class="subtask-label">'
+          + '<span class="subtask-number">-' + subNum + '.</span>'
+          + '<span class="subtask-text">' + renderInline(subText) + '</span>'
+          + '</div>'
+          + '<div class="subtask-answer">' + renderMarkdown(subAns) + '</div>'
+          + '</div>'
+          + '</div>';
+      }
+      html += '</div>';
+
+      // If task also has a top-level answer alongside subtasks, show it too
+      var topAns = body.match(/\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/);
+      if (topAns) {
+        html += '<div class="answer-block">' + renderMarkdown(topAns[1].trim()) + '</div>';
+      }
+    }
+
+    html += '</div>'; // close task-group
   }
-  if (!found) {
-    var taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
-    var answerRe = /\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
-    var tasks = [], answers = [];
-    while ((m = taskRe.exec(md))   !== null) tasks.push({ n: m[1], text: m[2].trim() });
-    while ((m = answerRe.exec(md)) !== null) answers.push(m[1].trim());
-    tasks.forEach(function(task, i) {
-      html += taskBlock(task.n, task.text, answers[i] || '', i);
-    });
-  }
-  return html || renderMarkdown(md);
+
+  return found ? html : renderMarkdown(md);
 }
 
 function renderMarkdown(md) {
