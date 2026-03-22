@@ -399,7 +399,7 @@ footer{
     <div class="logo-divider"></div>
     <span class="sub">Photo Analyser</span>
   </div>
-  <span class="badge">gemini 2.0 flash · free</span>
+  <span class="badge">nemotron · free</span>
 </header>
 
 <div class="container">
@@ -439,20 +439,23 @@ footer{
 </div>
 
 <div id="toast"></div>
-<footer>Lens · Powered by Google Gemini · Free</footer>
+<footer>Lens · Powered by Puter.js · 100% Free</footer>
 
+<script src="https://js.puter.com/v2/"></script>
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// CONFIG — Google Gemini API (free tier, no credit card, not revoked by GitHub)
-// Get your free key at: aistudio.google.com → "Get API Key" (takes 30 seconds)
-// Free limits: 1,500 requests/day, 15 RPM — plenty for personal use
+// LENS — Powered by Puter.js (100% free, no API key, no signup needed)
+// Users authenticate with their free Puter account on first use.
+//
+// VISION model  → nvidia/nemotron-nano-12b-v2-vl  (reads & transcribes image)
+// SOLVING model → nvidia/llama-3.3-nemotron-super-49b-v1.5  (reasons & answers)
 // ─────────────────────────────────────────────────────────────────────────────
-const GEMINI_KEY  = 'AIzaSyCKJnmEwHiTJCRRXAMJXeapWnnRE5hNh7A'; // ← your free Gemini key
-const MODEL       = 'gemini-2.0-flash';  // best free vision model, 1500 req/day
-const GEMINI_URL  = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`;
+
+const MODEL_VISION = 'nvidia/nemotron-nano-12b-v2-vl';
+const MODEL_SOLVER = 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PROMPTS — two-pass system for maximum accuracy
+// PROMPTS
 // ─────────────────────────────────────────────────────────────────────────────
 const SYS_TRANSCRIBE = `You are a precise OCR and content-extraction engine.
 
@@ -465,14 +468,14 @@ Output format:
 - Do NOT answer, solve, translate, or comment — only transcribe
 - If the image has no readable text, output: [NO TEXT]`;
 
-const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects. You will be given a verbatim transcript of text extracted from an image, and optionally a specific question from the user.
+const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects. You will receive a verbatim transcript of text extracted from an image, and optionally a specific question from the user.
 
 Your task: produce the correct, precise answer.
 
 ━━━ CORE RULES ━━━
-• OUTPUT ONLY THE ANSWER. No "I can see…", no "Based on the image…", no "Looking at this…", no preamble of any kind. Start with the answer.
+• OUTPUT ONLY THE ANSWER. No "I can see…", no "Based on the image…", no "Looking at this…", no preamble of any kind. Start directly with the answer.
 • No meta-commentary. Never mention the transcript, the image, or your reasoning process.
-• No filler: "Great!", "Certainly!", "I hope this helps!" — none of that.
+• No filler phrases whatsoever: no "Great!", "Certainly!", "I hope this helps!", nothing.
 • Be correct above all else. Think carefully before writing.
 
 ━━━ SUBJECT-SPECIFIC RULES ━━━
@@ -483,11 +486,11 @@ MATHEMATICS / ALGEBRA / CALCULUS / STATISTICS
 • If multiple parts (a, b, c…): answer each in order.
 
 MULTIPLE CHOICE (any subject)
-• State the correct letter and option text: **B) The mitochondria**
-• Nothing else unless the question asks for explanation.
+• State the correct letter and option text only: **B) The mitochondria**
+• Nothing else unless the question explicitly asks for explanation.
 
 FILL-IN-THE-BLANK
-• Give only the exact word(s) that fill the blank.
+• Give only the exact word(s) that fill the blank. Nothing else.
 
 SCIENCE (Physics / Chemistry / Biology)
 • For calculations: show formula → substitution → result.
@@ -495,7 +498,7 @@ SCIENCE (Physics / Chemistry / Biology)
 
 LANGUAGES (German, French, Spanish, Polish, Italian, Latin, etc.)
 • Translate accurately and naturally.
-• If grammar is tested (conjugation, case, tense): give the correct form with a one-line note only if it aids understanding.
+• If grammar is tested: give the correct form with a one-line note only if it genuinely aids understanding.
 
 HISTORY / GEOGRAPHY
 • Give specific facts: names, dates, places — no vague generalisations.
@@ -507,17 +510,17 @@ MULTIPLE QUESTIONS IN ONE IMAGE
 • Number your answers to match the question numbers exactly.
 
 DIAGRAMS / CHARTS / GRAPHS
-• Read values precisely. State what the visual shows, then answer what's asked.
+• Read values precisely. State what the visual shows, then answer what is asked.
 
 ━━━ FORMATTING ━━━
 • Use **bold** to highlight final answers.
 • Use numbered lists when answering multiple questions.
 • Use code blocks for code or chemical formulas when helpful.
-• Keep it tight — no padding.`;
+• Keep it tight — no padding, no filler.`;
 
-const SYS_CLASSIFY = `Output ONLY raw JSON, no markdown, no extra text.
-Format: {"subjects":["Tag1","Tag2"],"isSchool":true}
-Tags are exact subject names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
+const SYS_CLASSIFY = `Output ONLY raw JSON, no markdown, no extra text, no explanation.
+Format exactly: {"subjects":["Tag1","Tag2"],"isSchool":true}
+Use exact subject names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
 Max 3 tags. isSchool=true if the image is homework/exam/textbook/exercise.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -545,6 +548,7 @@ const toastEl     = $('toast');
 // ─────────────────────────────────────────────────────────────────────────────
 let imgB64    = null;
 let imgMime   = 'image/jpeg';
+let imgDataUrl = null;
 let busy      = false;
 let rawAnswer = '';
 
@@ -564,9 +568,9 @@ function loadFile(file) {
   imgMime = file.type || 'image/jpeg';
   const reader = new FileReader();
   reader.onload = e => {
-    const data    = e.target.result;
-    imgB64        = data.split(',')[1];
-    previewImg.src = data;
+    imgDataUrl = e.target.result;
+    imgB64     = imgDataUrl.split(',')[1];
+    previewImg.src = imgDataUrl;
     previewWrap.style.display = 'block';
     uploadZone.style.display  = 'none';
     questionEl.disabled  = false;
@@ -578,7 +582,7 @@ function loadFile(file) {
 }
 
 clearBtn.addEventListener('click', () => {
-  imgB64 = null; imgMime = 'image/jpeg';
+  imgB64 = null; imgMime = 'image/jpeg'; imgDataUrl = null;
   previewImg.src = ''; previewWrap.style.display = 'none';
   uploadZone.style.display = 'block'; fileInput.value = '';
   questionEl.disabled = analyseBtn.disabled = true;
@@ -598,43 +602,30 @@ function clearTags() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GEMINI API CALL
-// Uses Google's REST API directly — works from any browser, any origin, GitHub Pages
+// PUTER AI CALLS
+// puter.ai.chat(prompt, imageUrl, { model }) for vision
+// puter.ai.chat(messages, { model }) for text reasoning
 // ─────────────────────────────────────────────────────────────────────────────
-async function callGemini(systemText, userText, maxTokens) {
-  const body = {
-    system_instruction: { parts: [{ text: systemText }] },
-    contents: [{
-      role: 'user',
-      parts: [
-        { inline_data: { mime_type: imgMime, data: imgB64 } },
-        { text: userText }
-      ]
-    }],
-    generationConfig: { maxOutputTokens: maxTokens, temperature: 0.1 }
-  };
+async function visionCall(prompt, model) {
+  // Puter vision: pass data URL directly as second argument
+  const resp = await puter.ai.chat(prompt, imgDataUrl, { model });
+  return (typeof resp === 'string' ? resp : resp?.message?.content || resp?.text || JSON.stringify(resp)).trim();
+}
 
-  const res = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('No response from Gemini');
-  return text.trim();
+async function textCall(messages, model) {
+  const resp = await puter.ai.chat(messages, { model });
+  return (typeof resp === 'string' ? resp : resp?.message?.content || resp?.text || JSON.stringify(resp)).trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLASSIFY (background, silent)
+// CLASSIFY (background, silent — uses vision model)
 // ─────────────────────────────────────────────────────────────────────────────
 const LANGS = new Set(['german','french','spanish','polish','english','italian','latin','russian','chinese','japanese','arabic','portuguese','dutch','swedish','danish','czech','hungarian','romanian','turkish','korean']);
 
 async function classify() {
   try {
-    const raw = await callGemini(SYS_CLASSIFY, 'Classify this image.', 150);
+    const prompt = SYS_CLASSIFY + '\n\nClassify this image.';
+    const raw = await visionCall(prompt, MODEL_VISION);
     let p;
     try { p = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { return; }
     clearTags();
@@ -649,7 +640,9 @@ async function classify() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN ANALYSIS — two-pass: transcribe → solve
+// MAIN ANALYSIS — two-pass
+// Pass 1: vision model reads & transcribes the image
+// Pass 2: powerful reasoning model solves from transcript
 // ─────────────────────────────────────────────────────────────────────────────
 analyseBtn.addEventListener('click', run);
 questionEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !busy) run(); });
@@ -668,16 +661,20 @@ async function run() {
   resultText.innerHTML = '<span class="cursor-blink"></span>';
 
   try {
-    // Pass 1 — extract all text verbatim
-    const transcript = await callGemini(
-      SYS_TRANSCRIBE,
-      'Extract all text and content from this image verbatim.',
-      600
-    );
+    // ── Pass 1: Vision model transcribes the image ──────────────────────────
+    const transcribePrompt = SYS_TRANSCRIBE + '\n\nExtract all text and content from this image verbatim.';
+    const transcript = await visionCall(transcribePrompt, MODEL_VISION);
 
-    // Pass 2 — solve with full context
-    const solvePrompt = `TRANSCRIPT OF IMAGE CONTENT:\n${transcript}\n\n${q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in this image.'}`;
-    const answer = await callGemini(SYS_SOLVE, solvePrompt, 1500);
+    // ── Pass 2: Reasoning model solves from transcript ──────────────────────
+    const solveContent = `${SYS_SOLVE}
+
+TRANSCRIPT OF IMAGE CONTENT:
+${transcript}
+
+${q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in this image. Answer all questions found.'}`;
+
+    const messages = [{ role: 'user', content: solveContent }];
+    const answer = await textCall(messages, MODEL_SOLVER);
 
     rawAnswer = answer;
     pulseDot.classList.remove('on');
@@ -686,9 +683,10 @@ async function run() {
 
   } catch(err) {
     pulseDot.classList.remove('on');
-    toast((err.message || 'Error').slice(0, 90), 'error');
+    const msg = err.message || String(err);
+    toast(msg.slice(0, 90), 'error');
     resultBox.style.display = 'none';
-    console.error(err);
+    console.error('Lens error:', err);
   } finally {
     busy = false;
     analyseBtn.disabled = false;
@@ -700,16 +698,15 @@ async function run() {
 // COPY
 // ─────────────────────────────────────────────────────────────────────────────
 copyBtn.addEventListener('click', async () => {
-  const text = rawAnswer;
-  if (!text) return;
+  if (!rawAnswer) return;
   let ok = false;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    try { await navigator.clipboard.writeText(text); ok = true; } catch {}
+  if (navigator.clipboard?.writeText) {
+    try { await navigator.clipboard.writeText(rawAnswer); ok = true; } catch {}
   }
   if (!ok) {
     try {
       const ta = document.createElement('textarea');
-      ta.value = text;
+      ta.value = rawAnswer;
       ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
       document.body.appendChild(ta);
       ta.focus(); ta.select();
@@ -723,7 +720,7 @@ copyBtn.addEventListener('click', async () => {
     toast('Copied!', 'ok');
     setTimeout(() => { copyBtn.textContent = 'copy'; copyBtn.classList.remove('copied'); }, 2000);
   } else {
-    toast('Copy failed — try Ctrl+A / Cmd+A', 'error');
+    toast('Copy failed — select text manually', 'error');
   }
 });
 
