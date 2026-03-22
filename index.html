@@ -399,7 +399,7 @@ footer{
     <div class="logo-divider"></div>
     <span class="sub">Photo Analyser</span>
   </div>
-  <span class="badge">kimi k2.5 · free</span>
+  <span class="badge">mistral large · free</span>
 </header>
 
 <div class="container">
@@ -439,89 +439,87 @@ footer{
 </div>
 
 <div id="toast"></div>
-<footer>Lens · Powered by Pollinations.AI · Free</footer>
+<footer>Lens · Powered by Mistral AI · Free</footer>
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// LENS — Pollinations.AI  (gen.pollinations.ai — correct 2026 endpoint)
-// pk_ key = publishable, frontend-safe, designed for exactly this use case
+// LENS — Mistral AI (free, works in Poland, EU servers, no balance needed)
+// Free Experiment plan: 1B tokens/month, no credit card, just phone number
+// Sign up: console.mistral.ai → Billing → Experiment for free → API Keys
 //
-// VISION  → kimi       : Kimi K2.5 — 256K ctx, vision, reads image & extracts
-// SOLVING → kimi       : same model, text-only pass — best free reasoning
+// VISION  → pixtral-12b        : dedicated vision model, reads the image
+// SOLVING → mistral-large-latest: best reasoning model, answers everything
 // ─────────────────────────────────────────────────────────────────────────────
-const POLL_KEY = 'sk_kxVlHsPHGEDvbfUOBMPBDMUbJ2DvLFIz';
-const POLL_URL = 'https://gen.pollinations.ai/v1/chat/completions';
-const MODEL_VISION = 'kimi';   // Kimi K2.5 — vision + 256K context
-const MODEL_SOLVER = 'kimi';   // same model, no image in pass 2 (faster)
+const MISTRAL_KEY  = 'bTTD9pnTZM1luO3lr5FIJtDLi2aWgcbq';
+const MISTRAL_URL  = 'https://api.mistral.ai/v1/chat/completions';
+const MODEL_VISION = 'pixtral-12b';
+const MODEL_SOLVER = 'mistral-large-latest';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROMPTS
 // ─────────────────────────────────────────────────────────────────────────────
 const SYS_TRANSCRIBE = `You are a precise OCR and content-extraction engine.
 
-Your ONLY job: read the image and output a complete, verbatim transcript of ALL text, numbers, symbols, equations, answer options, labels, and any other written content you can see.
+Your ONLY job: read the image and output a complete, verbatim transcript of ALL text, numbers, symbols, equations, answer options, labels, and any other written content visible.
 
-Output rules:
+Rules:
 - Plain text only, preserving original structure (numbered questions, lettered options, etc.)
 - Math/science: reproduce every symbol, subscript, superscript, fraction, equation exactly
-- Foreign language text: copy exactly, preserving all accents and special characters
+- Foreign language: copy exactly, preserving all accents and special characters
 - Do NOT answer, solve, translate, or comment — only transcribe
-- If no readable text exists, output: [NO TEXT]`;
+- If no readable text: output [NO TEXT]`;
 
-const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects.
+const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across every school subject.
 
-You receive a verbatim transcript of text extracted from an image, and optionally a question from the user.
-Produce the correct, precise answer.
+You receive a verbatim transcript of an image and optionally a question. Give the correct, precise answer.
 
 ━━━ ABSOLUTE RULES ━━━
-• Start DIRECTLY with the answer — zero preamble. No "I can see…", "Based on…", "Looking at…" ever.
-• Never mention the transcript, the image, or your process.
-• No filler: no "Great!", "Certainly!", "Of course!", "I hope this helps!" — nothing.
-• Correct above all else. Think before writing.
+• Start DIRECTLY with the answer. Zero preamble. No "I can see…", "Based on…", "Looking at…" ever.
+• Never mention the transcript, image, or your process.
+• No filler words: no "Great!", "Certainly!", "Of course!", "I hope this helps!" — none.
+• Be correct. Think carefully before writing.
 
 ━━━ BY SUBJECT ━━━
 
 MATH / ALGEBRA / CALCULUS / STATISTICS
-• Work internally, show clean steps.
-• End with: **Answer: [value + units]**
-• Multiple parts → answer each labelled (a), (b), etc.
+• Show clean working steps. End with: **Answer: [value + units]**
+• Multiple parts → label each (a), (b), etc.
 
 MULTIPLE CHOICE
-• Correct letter + text only: **B) Photosynthesis**
-• No explanation unless explicitly asked.
+• Letter + text only: **B) Photosynthesis** — nothing else unless explanation is asked.
 
 FILL-IN-THE-BLANK
 • Exact missing word(s) only.
 
 PHYSICS / CHEMISTRY / BIOLOGY
 • Calculations: formula → substitution → result.
-• Theory: precise factual answer.
+• Theory: precise factual answer only.
 
-LANGUAGES (German, French, Spanish, Polish, Italian, Latin…)
-• Accurate natural translation.
-• Grammar questions: correct form + one-line note if useful.
+LANGUAGES (German, French, Spanish, Polish, Italian, Latin, Russian…)
+• Accurate, natural translation.
+• Grammar: correct form + one-line note only if it genuinely helps.
 
 HISTORY / GEOGRAPHY
-• Specific facts: names, dates, places only.
+• Specific facts: names, dates, places. No vague generalisations.
 
 LITERATURE / COMPREHENSION
-• Answer from the text strictly.
+• Answer strictly from the text.
 
 MULTIPLE QUESTIONS
-• Number answers to match question numbers exactly.
+• Number answers matching question numbers exactly.
 
-DIAGRAMS / CHARTS
-• Read values precisely. Answer what is asked.
+DIAGRAMS / CHARTS / GRAPHS
+• Read values precisely. Answer exactly what is asked.
 
 ━━━ FORMAT ━━━
 • **Bold** final answers.
 • Numbered lists for multiple questions.
-• Code blocks for code/formulas.
-• Tight — no padding.`;
+• Code blocks for code or chemical formulas.
+• No padding, no filler.`;
 
-const SYS_CLASSIFY = `Output ONLY raw JSON, no markdown, no text outside the JSON.
+const SYS_CLASSIFY = `Output ONLY raw JSON. No markdown, no text outside the JSON.
 Format: {"subjects":["Tag1","Tag2"],"isSchool":true}
-Subject names: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
+Tags: Math, Algebra, Calculus, Geometry, Statistics, Physics, Chemistry, Biology, History, Geography, English, German, French, Spanish, Polish, Italian, Latin, Russian, Computer Science, Economics, Art, Music, Philosophy.
 Max 3 tags. isSchool=true if homework/exam/textbook/exercise.`;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -603,23 +601,17 @@ function clearTags() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// POLLINATIONS API CALL
-// Correct 2026 endpoint: gen.pollinations.ai/v1/chat/completions
-// pk_ key sent as Bearer token — designed for frontend use
-// Vision: pass image as base64 data URL in image_url content part
+// MISTRAL API CALL
+// Vision call: uses pixtral-12b with base64 image inline
+// Text call:   uses mistral-large-latest, text only (faster for pass 2)
+// Both use standard OpenAI-compatible messages format
 // ─────────────────────────────────────────────────────────────────────────────
-async function callAI(system, userText, withImage, model) {
-  const userContent = [];
-  if (withImage && imgDataUrl) {
-    userContent.push({ type: 'image_url', image_url: { url: imgDataUrl } });
-  }
-  userContent.push({ type: 'text', text: userText });
-
-  const res = await fetch(POLL_URL, {
+async function callMistral(system, userContent, model) {
+  const res = await fetch(MISTRAL_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${POLL_KEY}`
+      'Authorization': `Bearer ${MISTRAL_KEY}`
     },
     body: JSON.stringify({
       model,
@@ -627,32 +619,37 @@ async function callAI(system, userText, withImage, model) {
         { role: 'system', content: system },
         { role: 'user',   content: userContent }
       ],
-      max_tokens: withImage ? 800 : 2000,
-      temperature: 0.1
+      temperature: 0.1,
+      max_tokens: model === MODEL_VISION ? 800 : 2000
     })
   });
 
   if (!res.ok) {
-    const errText = await res.text().catch(() => res.statusText);
-    throw new Error(`Pollinations ${res.status}: ${errText.slice(0, 120)}`);
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Mistral error ${res.status}`);
   }
 
   const data = await res.json();
   const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Empty response from Pollinations');
+  if (!text) throw new Error('Empty response');
   return text.trim();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CLASSIFY (background, silent)
+// CLASSIFY — background, silent
 // ─────────────────────────────────────────────────────────────────────────────
 const LANGS = new Set(['german','french','spanish','polish','english','italian','latin','russian','chinese','japanese','arabic','portuguese','dutch','swedish','danish','czech','hungarian','romanian','turkish','korean']);
 
 async function classify() {
   try {
-    const raw = await callAI(SYS_CLASSIFY, 'Classify this image.', true, MODEL_VISION);
+    // Pixtral accepts image_url with base64 data URL directly
+    const userContent = [
+      { type: 'image_url', image_url: { url: imgDataUrl } },
+      { type: 'text', text: 'Classify this image.' }
+    ];
+    const raw = await callMistral(SYS_CLASSIFY, userContent, MODEL_VISION);
     let p;
-    try { p = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { return; }
+    try { p = JSON.parse(raw.replace(/```json|```/g, '').trim()); } catch { return; }
     clearTags();
     (p.subjects || []).slice(0, 3).forEach(s => {
       const span = document.createElement('span');
@@ -665,9 +662,9 @@ async function classify() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN ANALYSIS — two-pass
-// Pass 1 → vision call : Kimi reads image, outputs verbatim transcript
-// Pass 2 → text call   : Kimi reasons from transcript, no image needed
+// MAIN — two-pass analysis
+// Pass 1: pixtral-12b reads image → verbatim transcript
+// Pass 2: mistral-large-latest solves from transcript → final answer
 // ─────────────────────────────────────────────────────────────────────────────
 analyseBtn.addEventListener('click', run);
 questionEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !busy) run(); });
@@ -686,27 +683,19 @@ async function run() {
   resultText.innerHTML = '<span class="cursor-blink"></span>';
 
   try {
-    // Pass 1 — Kimi reads the image, extracts content verbatim
-    const transcript = await callAI(
-      SYS_TRANSCRIBE,
-      'Extract all text and content from this image verbatim.',
-      true,          // with image
-      MODEL_VISION
-    );
+    // Pass 1 — Pixtral reads & transcribes image
+    const visionContent = [
+      { type: 'image_url', image_url: { url: imgDataUrl } },
+      { type: 'text', text: 'Extract all text and content from this image verbatim.' }
+    ];
+    const transcript = await callMistral(SYS_TRANSCRIBE, visionContent, MODEL_VISION);
 
-    // Pass 2 — Kimi solves from clean transcript (no image = faster)
+    // Pass 2 — Mistral Large reasons from transcript, no image needed
     const solvePrompt =
       `TRANSCRIPT OF IMAGE CONTENT:\n${transcript}\n\n` +
-      (q
-        ? `USER QUESTION: ${q}`
-        : 'Task: Analyse and solve everything in this image. Answer all questions found.');
+      (q ? `USER QUESTION: ${q}` : 'Analyse and solve everything in this image. Answer all questions found.');
 
-    const answer = await callAI(
-      SYS_SOLVE,
-      solvePrompt,
-      false,         // text only
-      MODEL_SOLVER
-    );
+    const answer = await callMistral(SYS_SOLVE, solvePrompt, MODEL_SOLVER);
 
     rawAnswer = answer;
     pulseDot.classList.remove('on');
@@ -759,7 +748,7 @@ copyBtn.addEventListener('click', async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 function renderMD(el, md) {
   const codeBlocks = [];
-  let s = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+  let s = md.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, _l, code) => {
     codeBlocks.push(`<pre><code>${esc(code.trim())}</code></pre>`);
     return `\x02CB${codeBlocks.length - 1}\x03`;
   });
