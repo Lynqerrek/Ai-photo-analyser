@@ -766,8 +766,15 @@ Rules:
 
 const SYS_SOLVE = `You are a friendly, smart helper — like that classmate who actually gets it. You receive content from an image and answer naturally.
 
-━━━ LANGUAGE ━━━
-Always reply in the same language the user writes in. Polish → Polish. English → English. Never switch.
+━━━ LANGUAGE — CRITICAL ━━━
+Detect the language the USER is writing in from their question or instructions.
+If the user writes in English → respond in English.
+If the user writes in Polish → respond in Polish.
+If there is no user question (blank input) → respond in English by default.
+EXCEPTION: if the task itself explicitly asks you to write text IN a specific language
+(e.g. "napisz wypracowanie po polsku" / "write an essay in Polish"), then the essay
+body is in that language, but your explanation around it stays in the user's language.
+Never pick a language based on the image content alone — always follow the user.
 
 ━━━ TONE ━━━
 - Casual, warm, natural — like a smart friend helping with homework
@@ -775,28 +782,28 @@ Always reply in the same language the user writes in. Polish → Polish. English
 - Short and clear — get to the point but make it easy to follow
 
 ━━━ CRITICAL — STRUCTURED OUTPUT FORMAT ━━━
-You MUST answer EVERY SINGLE task/question visible. Do not skip any. If there are 6 tasks, output 6 blocks.
+When the image has 2 or more numbered tasks/questions, you MUST use tags. No exceptions.
+Answer EVERY SINGLE task. If there are 5 tasks, output 5 blocks. Never skip one.
 
-When the image has multiple numbered tasks (1. 2. 3. etc.), use this EXACT tag format:
+SIMPLE TASK (no subtasks):
+[TASK:1]Task text here[/TASK]
+[ANSWER]Your answer here[/ANSWER]
 
-[TASK:1]Main task text[/TASK]
-[ANSWER]Answer to task 1[/ANSWER]
-
-If a task has subtasks (a, b, c or -1, -2 etc.), use SUBTASK tags nested inside:
-
+TASK WITH SUBTASKS (a/b/c or i/ii or nested numbers):
 [TASK:2]Main task text[/TASK]
-[SUBTASK:2.1]Subtask text[/SUBTASK]
-[SUBTASK_ANSWER]Answer[/SUBTASK_ANSWER]
-[SUBTASK:2.2]Subtask text[/SUBTASK]
-[SUBTASK_ANSWER]Answer[/SUBTASK_ANSWER]
+[SUBTASK:2.1]Subtask a text[/SUBTASK]
+[SUBTASK_ANSWER]Answer to subtask a[/SUBTASK_ANSWER]
+[SUBTASK:2.2]Subtask b text[/SUBTASK]
+[SUBTASK_ANSWER]Answer to subtask b[/SUBTASK_ANSWER]
 
-CRITICAL rules:
-- Answer EVERY task. Never skip one. If you see 1, 2, 3, 4 — all four get blocks.
-- [TASK:N] number must match the original exactly. Never reset or repeat.
-- Subtask IDs use format PARENT.SUB — so task 2 subtasks are 2.1, 2.2, 2.3
-- Every [TASK] needs [ANSWER] OR at least one [SUBTASK]/[SUBTASK_ANSWER] pair
-- Inside answers: math step by step on separate lines, **bold** the final result
-- Only free text (no tags) when there is exactly one question with no numbering
+ABSOLUTE RULES — never break these:
+- Start EVERY multi-task response with [TASK:1] — no intro text before it
+- End EVERY task's answer before starting the next [TASK:N]
+- [TASK:N] number = original task number exactly. Task 3 = [TASK:3]. Always.
+- Never put text OUTSIDE of tags when using the structured format
+- Never skip a task. Never merge two tasks into one block.
+- Only use free flowing text (no tags) when there is exactly ONE question total
+- Inside [ANSWER] and [SUBTASK_ANSWER]: write steps on separate lines, **bold** final results
 
 ━━━ WHEN TO ASK CLARIFICATION QUESTIONS ━━━
 Some tasks genuinely require personal information from the user before you can answer correctly.
@@ -830,6 +837,12 @@ For a "describe yourself" task:
 
 Ask exactly the questions needed — not more, not less.
 Do NOT use [CLARIFY] for tasks you can answer from the image alone (math, history, science etc.).
+
+━━━ WORD COUNT — CRITICAL ━━━
+If a task specifies a minimum word count (e.g. "napisz co najmniej 100 słów", "write at least 100 words",
+"minimum 150 words"), you MUST meet or exceed that count. Count your words before finishing.
+If you are short, keep writing until you reach the minimum. Never submit under the required count.
+After writing, add at the end in parentheses: (Word count: N words)
 
 ━━━ WRITING STYLE FOR MATH & SCIENCE ━━━
 Write like a student on paper — not a computer printout:
@@ -1114,10 +1127,67 @@ copyBtn.addEventListener('click', async () => {
 // plus standard markdown for everything else
 // ─────────────────────────────────────────────────────────────────────────────
 function renderMD(el, md) {
+  // Clarify block check
   var clarifyMatch = md.match(/\[CLARIFY\]([\s\S]*?)\[\/CLARIFY\]/);
   if (clarifyMatch) { el.innerHTML = renderClarify(clarifyMatch[1].trim()); return; }
-  if (/\[TASK:\d+\]/.test(md)) { el.innerHTML = renderStructured(md); return; }
+
+  // Structured check — also catches imperfect tag output:
+  // AI sometimes writes [TASK: 1] with a space, or [Task:1] with wrong case,
+  // or forgets closing tags. We normalise first.
+  var normalised = md
+    // normalise spacing inside tags: [TASK: 1] → [TASK:1]
+    .replace(/\[\s*TASK\s*:\s*(\d+)\s*\]/gi,        '[TASK:$1]')
+    .replace(/\[\s*\/\s*TASK\s*\]/gi,               '[/TASK]')
+    .replace(/\[\s*ANSWER\s*\]/gi,                  '[ANSWER]')
+    .replace(/\[\s*\/\s*ANSWER\s*\]/gi,             '[/ANSWER]')
+    .replace(/\[\s*SUBTASK\s*:\s*([^\]]+?)\s*\]/gi, '[SUBTASK:$1]')
+    .replace(/\[\s*\/\s*SUBTASK\s*\]/gi,            '[/SUBTASK]')
+    .replace(/\[\s*SUBTASK_ANSWER\s*\]/gi,          '[SUBTASK_ANSWER]')
+    .replace(/\[\s*\/\s*SUBTASK_ANSWER\s*\]/gi,     '[/SUBTASK_ANSWER]');
+
+  if (/\[TASK:\d+\]/.test(normalised)) {
+    el.innerHTML = renderStructured(normalised);
+    return;
+  }
+
+  // Fallback: if AI used numbered lines like "1. task" but no tags,
+  // and there are 2+ such lines, try to auto-structure them
+  var numberedLines = md.match(/^\d+\.\s+.+/gm);
+  if (numberedLines && numberedLines.length >= 2) {
+    el.innerHTML = renderAutoStructured(md);
+    return;
+  }
+
   el.innerHTML = renderMarkdown(md);
+}
+
+// Auto-structure fallback: when AI ignored tags but used plain numbered answers
+// e.g. "1. Answer\n2. Answer\n3. Answer"
+function renderAutoStructured(md) {
+  // Split by lines starting with a number+dot
+  var blocks = md.split(/(?=^\d+\.\s)/m).filter(function(b){ return b.trim(); });
+  if (blocks.length < 2) return renderMarkdown(md);
+
+  var html = '';
+  blocks.forEach(function(block) {
+    var firstLine = block.split('\n')[0];
+    var rest      = block.split('\n').slice(1).join('\n').trim();
+    var numMatch  = firstLine.match(/^(\d+)\.\s*(.*)/);
+    if (!numMatch) { html += renderMarkdown(block); return; }
+    var num      = numMatch[1];
+    var taskText = numMatch[2].trim();
+    // If rest is empty, the whole text is the answer
+    var ansText  = rest || taskText;
+    var showTask = rest ? taskText : '';
+    html += '<div class="task-group">'
+      + '<div class="task-label">'
+      + '<span class="task-number">' + num + '.</span>'
+      + '<span class="task-text">' + renderInline(showTask || '&nbsp;') + '</span>'
+      + '</div>'
+      + '<div class="answer-block">' + renderMarkdown(ansText) + '</div>'
+      + '</div>';
+  });
+  return html;
 }
 
 function renderClarify(raw) {
