@@ -406,17 +406,36 @@ footer{
 }
 
 /* ── Structured task/answer blocks ────────────────────────── */
+
+/* Outer wrapper — gives each task a colored left border strip */
 .task-block {
-  border:1px solid var(--border2);
+  display:flex;
   border-radius:var(--r-sm);
   overflow:hidden;
-  margin-bottom:.75rem;
+  margin-bottom:1rem;
   animation:slideUp .2s ease both;
+  box-shadow:0 2px 12px rgba(0,0,0,.25);
 }
 .task-block:last-child { margin-bottom:0; }
 
+/* Colored side stripe — the "this belongs to task N" signal */
+.task-stripe {
+  width:4px;
+  flex-shrink:0;
+  background:var(--stripe-color, var(--accent2));
+}
+
+/* Inner content area */
+.task-inner {
+  flex:1; min-width:0;
+  border:1px solid var(--border2);
+  border-left:none;
+  border-radius:0 var(--r-sm) var(--r-sm) 0;
+  overflow:hidden;
+}
+
 .task-label {
-  display:flex; align-items:baseline; gap:.75rem;
+  display:flex; align-items:center; gap:.8rem;
   padding:.6rem .9rem;
   background:var(--surface2);
   border-bottom:1px solid var(--border);
@@ -424,34 +443,27 @@ footer{
 
 .task-number {
   font-family:'Syne',sans-serif; font-weight:800;
-  font-size:1rem; color:var(--accent2);
-  line-height:1; flex-shrink:0;
-  text-shadow:0 0 12px rgba(0,255,200,.3);
+  font-size:1.05rem; line-height:1; flex-shrink:0;
+  color:var(--stripe-color, var(--accent2));
+  min-width:1.4rem;
 }
 
 .task-text {
   font-family:'Inter',sans-serif; font-size:13px;
-  color:var(--muted2); font-weight:400; line-height:1.5;
+  color:var(--text); font-weight:500; line-height:1.5;
 }
-.task-text strong { color:var(--text); }
+.task-text strong { color:var(--accent); }
 
 .answer-block {
-  padding:.75rem .9rem;
+  padding:.8rem .9rem;
   background:var(--surface);
   font-family:'Inter',sans-serif; font-size:13.5px;
   line-height:1.85; color:#cccce0;
 }
 
-/* answer text overrides — accent color for key values */
-.answer-block strong {
-  color:var(--accent);
-  font-weight:600;
-}
-
+.answer-block strong { color:var(--accent); font-weight:600; }
 .answer-block p { margin-bottom:.5rem; }
 .answer-block p:last-child { margin-bottom:0; }
-.answer-block br + br { display:none; }
-
 .answer-block em { color:var(--muted2); }
 .answer-block ul,.answer-block ol { padding-left:1.4rem; margin-bottom:.4rem; }
 .answer-block li { margin-bottom:.15rem; }
@@ -1009,17 +1021,40 @@ function renderClarify(question) {
 }
 
 function renderStructured(md) {
+  // Stripe colors — cycles through these per task so each is visually distinct
+  var stripes = [
+    '#00ffc8',  // cyan-green   task 1
+    '#c8ff00',  // lime         task 2
+    '#ff9f43',  // orange       task 3
+    '#a29bfe',  // lavender     task 4
+    '#fd79a8',  // pink         task 5
+    '#74b9ff',  // sky blue     task 6
+    '#55efc4',  // mint         task 7
+    '#ffeaa7',  // yellow       task 8
+  ];
+
+  function taskBlock(num, taskText, answerText, colorIdx) {
+    var color = stripes[colorIdx % stripes.length];
+    return '<div class="task-block" style="--stripe-color:' + color + '">'
+      + '<div class="task-stripe"></div>'
+      + '<div class="task-inner">'
+      + '<div class="task-label">'
+      + '<span class="task-number">' + num + '.</span>'
+      + '<span class="task-text">' + renderInline(taskText) + '</span>'
+      + '</div>'
+      + '<div class="answer-block">' + renderMarkdown(answerText) + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
   var pairRe = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]\s*\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
   var html = '';
   var m;
   var found = false;
+  var idx = 0;
   while ((m = pairRe.exec(md)) !== null) {
     found = true;
-    html += '<div class="task-block">'
-      + '<div class="task-label"><span class="task-number">' + m[1] + '.</span>'
-      + '<span class="task-text">' + renderInline(m[2].trim()) + '</span></div>'
-      + '<div class="answer-block">' + renderMarkdown(m[3].trim()) + '</div>'
-      + '</div>';
+    html += taskBlock(m[1], m[2].trim(), m[3].trim(), idx++);
   }
   if (!found) {
     var taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
@@ -1028,11 +1063,7 @@ function renderStructured(md) {
     while ((m = taskRe.exec(md))   !== null) tasks.push({ n: m[1], text: m[2].trim() });
     while ((m = answerRe.exec(md)) !== null) answers.push(m[1].trim());
     tasks.forEach(function(task, i) {
-      html += '<div class="task-block">'
-        + '<div class="task-label"><span class="task-number">' + task.n + '.</span>'
-        + '<span class="task-text">' + renderInline(task.text) + '</span></div>'
-        + '<div class="answer-block">' + renderMarkdown(answers[i] || '') + '</div>'
-        + '</div>';
+      html += taskBlock(task.n, task.text, answers[i] || '', i);
     });
   }
   return html || renderMarkdown(md);
