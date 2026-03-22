@@ -390,6 +390,21 @@ footer{
   font-family:'Inter',sans-serif;
 }
 
+/* ── Clarify block ─────────────────────────────────────────── */
+.clarify-block {
+  display:flex; align-items:flex-start; gap:.85rem;
+  padding:1rem 1.1rem;
+  background:var(--surface2);
+  border:1px solid rgba(200,255,0,.2);
+  border-radius:var(--r-sm);
+  animation:slideUp .2s ease both;
+}
+.clarify-icon { font-size:1.3rem; flex-shrink:0; margin-top:.05rem; }
+.clarify-text {
+  font-family:'Inter',sans-serif; font-size:13.5px;
+  color:var(--text); line-height:1.65; font-weight:400;
+}
+
 /* ── Structured task/answer blocks ────────────────────────── */
 .task-block {
   border:1px solid var(--border2);
@@ -668,22 +683,37 @@ Always reply in the same language the user writes in. Polish → Polish. English
 - Short and clear — get to the point but make it easy to follow
 
 ━━━ CRITICAL — STRUCTURED OUTPUT FORMAT ━━━
-When the image contains multiple tasks, questions, or exercises (e.g. 1. 2. 3. or a) b) c)), you MUST use this exact tag format so the UI can display them beautifully:
+When the image contains multiple numbered tasks/questions (1. 2. 3. or a) b) c)), use this EXACT tag format:
 
-[TASK:1]Question or task text here[/TASK]
-[ANSWER]Your answer here[/ANSWER]
+[TASK:1]Exact question or task text[/TASK]
+[ANSWER]Your answer[/ANSWER]
 
-[TASK:2]Question or task text here[/TASK]
-[ANSWER]Your answer here[/ANSWER]
+[TASK:2]Exact question or task text[/TASK]
+[ANSWER]Your answer[/ANSWER]
 
-Rules for structured output:
-- Use [TASK:N] for the question/task label and text — this renders as a numbered header
-- Use [ANSWER] for your answer — this renders highlighted in accent color
-- Every task must have both a [TASK] and an [ANSWER] block
-- Inside [ANSWER] blocks, write math step by step on separate lines like on paper
-- Inside [ANSWER] you can use **bold** for the final result
-- Do NOT put any text outside the tags when there are multiple tasks — everything must be inside a tag pair
-- Only use free text (no tags) when there is just a single question with no numbering
+[TASK:3]Exact question or task text[/TASK]
+[ANSWER]Your answer[/ANSWER]
+
+CRITICAL numbering rule: the number inside [TASK:N] MUST match the original task number exactly.
+If the image has tasks 1, 2, 3, 4 — output [TASK:1], [TASK:2], [TASK:3], [TASK:4].
+Never reset to 1. Never repeat a number. Always increment correctly.
+- Every task must have both [TASK:N]...[/TASK] and [ANSWER]...[/ANSWER] immediately after
+- Inside [ANSWER]: write math step by step on separate lines, **bold** the final result
+- Only use free text (no tags) for a single question with no numbering
+
+━━━ WHEN TO ASK A CLARIFICATION QUESTION ━━━
+Sometimes you genuinely cannot give a correct answer without more info from the user.
+ONLY in those specific cases, output this tag instead of an answer:
+
+[CLARIFY]Your question to the user here?[/CLARIFY]
+
+Use [CLARIFY] ONLY when:
+- The task requires personal info you cannot know (e.g. "write about your holiday", "describe yourself")
+- The image is genuinely ambiguous and the answer depends on a choice the user must make
+- There are multiple valid interpretations and you need to know which one the user wants
+
+Do NOT use [CLARIFY] for normal questions you can answer from the image content.
+Do NOT use [CLARIFY] more than once per response.
 
 ━━━ WRITING STYLE FOR MATH & SCIENCE ━━━
 Write like a student on paper — not a computer printout:
@@ -968,6 +998,12 @@ copyBtn.addEventListener('click', async () => {
 // plus standard markdown for everything else
 // ─────────────────────────────────────────────────────────────────────────────
 function renderMD(el, md) {
+  // Check for clarification question
+  const clarifyMatch = md.match(/\[CLARIFY\]([\s\S]*?)\[\/CLARIFY\]/);
+  if (clarifyMatch) {
+    el.innerHTML = renderClarify(clarifyMatch[1].trim());
+    return;
+  }
   // Check if response uses structured task/answer format
   if (/\[TASK:\d+\]/.test(md)) {
     el.innerHTML = renderStructured(md);
@@ -977,32 +1013,61 @@ function renderMD(el, md) {
   el.innerHTML = renderMarkdown(md);
 }
 
+function renderClarify(question) {
+  return `
+    <div class="clarify-block">
+      <div class="clarify-icon">🤔</div>
+      <div class="clarify-text">${renderInline(question)}</div>
+    </div>
+  `;
+}
+
 function renderStructured(md) {
-  // Parse all [TASK:N]...[/TASK] and [ANSWER]...[/ANSWER] pairs
-  const taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
-  const answerRe = /\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
-
-  const tasks   = [];
-  const answers = [];
-  let m;
-
-  while ((m = taskRe.exec(md))   !== null) tasks.push({ n: m[1], text: m[2].trim() });
-  while ((m = answerRe.exec(md)) !== null) answers.push(m[1].trim());
-
+  // Parse interleaved [TASK:N]...[/TASK][ANSWER]...[/ANSWER] pairs in order
+  // This preserves the actual task number (1,2,3,4) from the AI output
+  const pairRe = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]\s*\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
   let html = '';
-  tasks.forEach((task, i) => {
-    const ans = answers[i] || '';
+  let m;
+  let found = false;
+
+  while ((m = pairRe.exec(md)) !== null) {
+    found = true;
+    const num  = m[1];          // actual number from AI: 1, 2, 3, 4...
+    const task = m[2].trim();
+    const ans  = m[3].trim();
     html += `
       <div class="task-block">
         <div class="task-label">
-          <span class="task-number">${task.n}</span>
-          <span class="task-text">${renderInline(task.text)}</span>
+          <span class="task-number">${num}.</span>
+          <span class="task-text">${renderInline(task)}</span>
         </div>
         <div class="answer-block">${renderMarkdown(ans)}</div>
       </div>
     `;
-  });
-  return html;
+  }
+
+  // Fallback: if pairs didn't match cleanly, try loose parse
+  if (!found) {
+    const taskRe   = /\[TASK:(\d+)\]([\s\S]*?)\[\/TASK\]/g;
+    const answerRe = /\[ANSWER\]([\s\S]*?)\[\/ANSWER\]/g;
+    const tasks = [], answers = [];
+    while ((m = taskRe.exec(md))   !== null) tasks.push({ n: m[1], text: m[2].trim() });
+    while ((m = answerRe.exec(md)) !== null) answers.push(m[1].trim());
+    tasks.forEach((task, i) => {
+      const ans = answers[i] || '';
+      html += `
+        <div class="task-block">
+          <div class="task-label">
+            <span class="task-number">${task.n}.</span>
+            <span class="task-text">${renderInline(task.text)}</span>
+          </div>
+          <div class="answer-block">${renderMarkdown(ans)}</div>
+        </div>
+      `;
+    });
+  }
+
+  return html || renderMarkdown(md);
 }
 
 function renderMarkdown(md) {
@@ -1163,7 +1228,7 @@ async function startAskMode() {
 ${transcript}
 
 Generate 2 multiple-choice questions with 3 choices each.`;
-    const raw = await callMistral(SYS_GENERATE_QS, prompt, MODEL_SOLVER);
+    const raw = await callMistral(SYS_GENERATE_QS, prompt, 'mistral-small-latest');
 
     let parsed;
     try {
