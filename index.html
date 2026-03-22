@@ -452,7 +452,7 @@ footer{
 // ─────────────────────────────────────────────────────────────────────────────
 const MISTRAL_KEY  = 'bTTD9pnTZM1luO3lr5FIJtDLi2aWgcbq';
 const MISTRAL_URL  = 'https://api.mistral.ai/v1/chat/completions';
-const MODEL_VISION = 'pixtral-12b';
+const MODEL_VISION = 'pixtral-large-latest';
 const MODEL_SOLVER = 'mistral-large-latest';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -617,7 +617,9 @@ function clearTags() {
 // Text call:   uses mistral-large-latest, text only (faster for pass 2)
 // Both use standard OpenAI-compatible messages format
 // ─────────────────────────────────────────────────────────────────────────────
-async function callMistral(system, userContent, model) {
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function callMistral(system, userContent, model, attempt = 0) {
   const res = await fetch(MISTRAL_URL, {
     method: 'POST',
     headers: {
@@ -634,6 +636,15 @@ async function callMistral(system, userContent, model) {
       max_tokens: model === MODEL_VISION ? 800 : 2000
     })
   });
+
+  // Rate limit hit — wait and retry up to 3 times
+  if (res.status === 429) {
+    if (attempt >= 3) throw new Error('Rate limit — wait a moment and try again');
+    const wait = [8000, 15000, 25000][attempt];
+    toast(`Rate limit — retrying in ${wait/1000}s…`);
+    await sleep(wait);
+    return callMistral(system, userContent, model, attempt + 1);
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -700,6 +711,9 @@ async function run() {
       { type: 'text', text: 'Extract all text and content from this image verbatim.' }
     ];
     const transcript = await callMistral(SYS_TRANSCRIBE, visionContent, MODEL_VISION);
+
+    // Small pause between the two API calls to avoid rate limiting
+    await sleep(2000);
 
     // Pass 2 — Mistral Large reasons from transcript, no image needed
     const solvePrompt =
