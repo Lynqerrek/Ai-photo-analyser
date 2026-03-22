@@ -399,7 +399,7 @@ footer{
     <div class="logo-divider"></div>
     <span class="sub">Photo Analyser</span>
   </div>
-  <span class="badge">nemotron · free</span>
+  <span class="badge">pollinations · free</span>
 </header>
 
 <div class="container">
@@ -439,20 +439,23 @@ footer{
 </div>
 
 <div id="toast"></div>
-<footer>Lens · Powered by Puter.js · 100% Free</footer>
+<footer>Lens · Powered by Pollinations.AI · Free</footer>
 
-<script src="https://js.puter.com/v2/"></script>
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// LENS — Powered by Puter.js (100% free, no API key, no signup needed)
-// Users authenticate with their free Puter account on first use.
+// LENS — Powered by Pollinations.AI
+// 100% free · no API key · no signup · no login · works on GitHub Pages
 //
-// VISION model  → nvidia/nemotron-nano-12b-v2-vl  (reads & transcribes image)
-// SOLVING model → nvidia/llama-3.3-nemotron-super-49b-v1.5  (reasons & answers)
+// VISION model  → openai (GPT-class vision, reads & transcribes image)
+// SOLVING model → openai (GPT-class reasoning, solves & answers)
+//
+// Endpoint: https://text.pollinations.ai/openai
+// Accepts base64 images directly. No auth required for anonymous usage.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MODEL_VISION = 'nvidia/nemotron-nano-12b-v2-vl';
-const MODEL_SOLVER = 'nvidia/llama-3.3-nemotron-super-49b-v1.5';
+const POLLINATIONS_URL = 'https://text.pollinations.ai/openai';
+const MODEL_VISION     = 'openai';   // vision-capable, reads images
+const MODEL_SOLVER     = 'openai';   // strong reasoning for answers
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROMPTS
@@ -468,14 +471,14 @@ Output format:
 - Do NOT answer, solve, translate, or comment — only transcribe
 - If the image has no readable text, output: [NO TEXT]`;
 
-const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects. You will receive a verbatim transcript of text extracted from an image, and optionally a specific question from the user.
+const SYS_SOLVE = `You are an elite academic assistant with expert-level knowledge across all school subjects. You receive a verbatim transcript of text extracted from an image, and optionally a specific question from the user.
 
 Your task: produce the correct, precise answer.
 
 ━━━ CORE RULES ━━━
 • OUTPUT ONLY THE ANSWER. No "I can see…", no "Based on the image…", no "Looking at this…", no preamble of any kind. Start directly with the answer.
 • No meta-commentary. Never mention the transcript, the image, or your reasoning process.
-• No filler phrases whatsoever: no "Great!", "Certainly!", "I hope this helps!", nothing.
+• No filler phrases: no "Great!", "Certainly!", "I hope this helps!", nothing like that.
 • Be correct above all else. Think carefully before writing.
 
 ━━━ SUBJECT-SPECIFIC RULES ━━━
@@ -546,11 +549,11 @@ const toastEl     = $('toast');
 // ─────────────────────────────────────────────────────────────────────────────
 // STATE
 // ─────────────────────────────────────────────────────────────────────────────
-let imgB64    = null;
-let imgMime   = 'image/jpeg';
+let imgB64     = null;
+let imgMime    = 'image/jpeg';
 let imgDataUrl = null;
-let busy      = false;
-let rawAnswer = '';
+let busy       = false;
+let rawAnswer  = '';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FILE LOADING
@@ -568,8 +571,8 @@ function loadFile(file) {
   imgMime = file.type || 'image/jpeg';
   const reader = new FileReader();
   reader.onload = e => {
-    imgDataUrl = e.target.result;
-    imgB64     = imgDataUrl.split(',')[1];
+    imgDataUrl     = e.target.result;
+    imgB64         = imgDataUrl.split(',')[1];
     previewImg.src = imgDataUrl;
     previewWrap.style.display = 'block';
     uploadZone.style.display  = 'none';
@@ -602,34 +605,64 @@ function clearTags() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PUTER AI CALLS
-// puter.ai.chat(prompt, imageUrl, { model }) for vision
-// puter.ai.chat(messages, { model }) for text reasoning
+// POLLINATIONS API CALL
+// No key, no auth — just POST to text.pollinations.ai/openai
+// Supports base64 images via data URL in image_url field
 // ─────────────────────────────────────────────────────────────────────────────
-async function visionCall(prompt, model) {
-  // Puter vision: pass data URL directly as second argument
-  const resp = await puter.ai.chat(prompt, imgDataUrl, { model });
-  return (typeof resp === 'string' ? resp : resp?.message?.content || resp?.text || JSON.stringify(resp)).trim();
+async function callAI(systemPrompt, userText, includeImage, maxTokens) {
+  const userContent = [];
+
+  // Always put text first
+  userContent.push({ type: 'text', text: userText });
+
+  // Attach image if needed (as base64 data URL)
+  if (includeImage && imgDataUrl) {
+    userContent.push({
+      type: 'image_url',
+      image_url: { url: imgDataUrl }
+    });
+  }
+
+  const body = {
+    model: includeImage ? MODEL_VISION : MODEL_SOLVER,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user',   content: userContent }
+    ],
+    max_tokens: maxTokens,
+    temperature: 0.1,
+    referrer: 'lens-photo-analyser'
+  };
+
+  const res = await fetch(POLLINATIONS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => res.statusText);
+    throw new Error(`API error ${res.status}: ${errText.slice(0, 120)}`);
+  }
+
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content;
+  if (!text) throw new Error('Empty response from API');
+  return text.trim();
 }
 
-async function textCall(messages, model) {
-  const resp = await puter.ai.chat(messages, { model });
-  return (typeof resp === 'string' ? resp : resp?.message?.content || resp?.text || JSON.stringify(resp)).trim();
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// CLASSIFY (background, silent — uses vision model)
+// CLASSIFY (background, silent)
 // ─────────────────────────────────────────────────────────────────────────────
 const LANGS = new Set(['german','french','spanish','polish','english','italian','latin','russian','chinese','japanese','arabic','portuguese','dutch','swedish','danish','czech','hungarian','romanian','turkish','korean']);
 
 async function classify() {
   try {
-    const prompt = SYS_CLASSIFY + '\n\nClassify this image.';
-    const raw = await visionCall(prompt, MODEL_VISION);
+    const raw = await callAI(SYS_CLASSIFY, 'Classify this image.', true, 120);
     let p;
     try { p = JSON.parse(raw.replace(/```json|```/g,'').trim()); } catch { return; }
     clearTags();
-    (p.subjects || []).slice(0,3).forEach(s => {
+    (p.subjects || []).slice(0, 3).forEach(s => {
       const span = document.createElement('span');
       span.className = LANGS.has(s.toLowerCase()) ? 'tag language' : 'tag subject';
       span.textContent = s;
@@ -641,8 +674,8 @@ async function classify() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN ANALYSIS — two-pass
-// Pass 1: vision model reads & transcribes the image
-// Pass 2: powerful reasoning model solves from transcript
+// Pass 1: vision call  → verbatim transcript of image content
+// Pass 2: text call    → solve/answer using transcript (no image needed)
 // ─────────────────────────────────────────────────────────────────────────────
 analyseBtn.addEventListener('click', run);
 questionEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !busy) run(); });
@@ -661,20 +694,25 @@ async function run() {
   resultText.innerHTML = '<span class="cursor-blink"></span>';
 
   try {
-    // ── Pass 1: Vision model transcribes the image ──────────────────────────
-    const transcribePrompt = SYS_TRANSCRIBE + '\n\nExtract all text and content from this image verbatim.';
-    const transcript = await visionCall(transcribePrompt, MODEL_VISION);
+    // Pass 1 — vision: extract all text/content from image
+    const transcript = await callAI(
+      SYS_TRANSCRIBE,
+      'Extract all text and content from this image verbatim.',
+      true,   // include image
+      700
+    );
 
-    // ── Pass 2: Reasoning model solves from transcript ──────────────────────
-    const solveContent = `${SYS_SOLVE}
+    // Pass 2 — reasoning: solve from transcript (no image needed, faster)
+    const solvePrompt = `TRANSCRIPT OF IMAGE CONTENT:\n${transcript}\n\n${
+      q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in this image. Answer all questions found.'
+    }`;
 
-TRANSCRIPT OF IMAGE CONTENT:
-${transcript}
-
-${q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in this image. Answer all questions found.'}`;
-
-    const messages = [{ role: 'user', content: solveContent }];
-    const answer = await textCall(messages, MODEL_SOLVER);
+    const answer = await callAI(
+      SYS_SOLVE,
+      solvePrompt,
+      false,  // text only — faster and just as accurate
+      1500
+    );
 
     rawAnswer = answer;
     pulseDot.classList.remove('on');
@@ -683,8 +721,7 @@ ${q ? `USER QUESTION: ${q}` : 'Task: Analyse and solve everything visible in thi
 
   } catch(err) {
     pulseDot.classList.remove('on');
-    const msg = err.message || String(err);
-    toast(msg.slice(0, 90), 'error');
+    toast((err.message || 'Error').slice(0, 90), 'error');
     resultBox.style.display = 'none';
     console.error('Lens error:', err);
   } finally {
