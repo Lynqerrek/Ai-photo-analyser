@@ -1105,7 +1105,7 @@ async function run() {
 
     const answer = await callMistral(SYS_SOLVE, solvePrompt, MODEL_SOLVER);
 
-    rawAnswer = answer;
+    rawAnswer = cleanForCopy(answer);
     pulseDot.classList.remove('on');
     renderMD(resultText, answer);
     copyBtn.style.display = 'block';
@@ -1125,6 +1125,27 @@ async function run() {
 // ─────────────────────────────────────────────────────────────────────────────
 // COPY
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Strip all [TAG] and [/TAG] markers, leaving only the plain answer text
+function cleanForCopy(text) {
+  return text
+    .replace(/\[TASK:\d+\]/g, '')
+    .replace(/\[\/TASK\]/g, '')
+    .replace(/\[ANSWER\]/g, '')
+    .replace(/\[\/ANSWER\]/g, '')
+    .replace(/\[SUBTASK:[^\]]+\]/g, '')
+    .replace(/\[\/SUBTASK\]/g, '')
+    .replace(/\[SUBTASK_ANSWER\]/g, '')
+    .replace(/\[\/SUBTASK_ANSWER\]/g, '')
+    .replace(/\[CLARIFY\]/g, '')
+    .replace(/\[\/CLARIFY\]/g, '')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+
 copyBtn.addEventListener('click', async () => {
   if (!rawAnswer) return;
   let ok = false;
